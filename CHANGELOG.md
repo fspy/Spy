@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.8-forever30-fspy.8
+
+- A **Sync** page in the addon's options window (not a slash command): enable
+  sync, set the channel, see entries/guilds/digest/channel members/queue, add the
+  current target as a partner, add a partner by name, remove partners with a
+  button, Sync now, Test connection and toggle debug messages.
+- A chain icon in the Spy window's title bar shows sync state (green connected,
+  yellow waiting, red channel refused, grey off) and opens the Sync page on
+  click.
+- The slash commands remain as shortcuts for the same actions.
+
 ## 1.3.8-forever30-fspy.7
 
 - Watched guilds now sync too: guild name, reason, adds and removals travel in

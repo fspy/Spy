@@ -61,7 +61,10 @@ Without "Always show nameplates" the game only shows nameplates in combat.
 
 ## Live Kill On Sight sync
 
-Off by default. Turn it on with `/spysync on`.
+Off by default. Open **Spy → Sync** in the options window, or click the chain
+icon in the Spy window's title bar, for a proper page: toggle, channel, live
+status, partner list, **Sync now**, **Test connection** and debug. The slash
+commands are shortcuts for the same actions.
 
 Spy joins a hidden chat channel and exchanges addon messages there (the same
 technique Happy Camper uses for camps). The lines never appear in chat. Kill On
@@ -101,6 +104,9 @@ Commands:
 | `/spysync whisper <player>` | Send your list to one player over whisper |
 | `/spysync test` | Print channel/partner state and ping both |
 | `/spysync debug` | Print every sent, received and applied sync message |
+
+The **Sync** page in the options window does all of this without typing, including
+adding the current target as a partner and removing partners with a button.
 
 ## Commands
 
