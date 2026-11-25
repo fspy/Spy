@@ -1,0 +1,12 @@
+# Build outputs
+*.zip
+
+# Editor / OS noise
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# Local test data
+SavedVariables/
+WTF/
