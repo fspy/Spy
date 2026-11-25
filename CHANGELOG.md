@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.8-forever30-fspy.5
+
+- Release packaging only: CI now publishes `Spy-forever.zip` and a
+  `release.json` (`forever`, interface 16001) next to the versioned zip and
+  `Spy.zip`, so WowUp's GitHub provider verifies the client instead of
+  warning and falling back to the generic asset.
+
 ## 1.3.8-forever30-fspy.4
 
 - `/spysync partner <player>`: every change is also whispered to partners, so
