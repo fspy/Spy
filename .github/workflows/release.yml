@@ -27,7 +27,7 @@ jobs:
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
-          interface=$(grep -m1 '^## Interface:' Spy.toc | cut -d' ' -f3 | cut -d, -f1 | tr -d '\r')
+          interface=$(grep -m1 'Interface:' Spy.toc | cut -d' ' -f3 | cut -d, -f1 | tr -d '\r')
           git archive --format=zip --prefix=Spy/ -o "Spy-${version}.zip" HEAD
           cp "Spy-${version}.zip" Spy-forever.zip
           cp "Spy-${version}.zip" Spy.zip
