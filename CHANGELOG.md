@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.8-forever30-fspy.4
+
+- `/spysync partner <player>`: every change is also whispered to partners, so
+  sync works even when a channel is refused or does not deliver.
+- `/spysync test`: prints the addon version, channel, member count, queue,
+  partners and join state, then pings the channel and partners.
+- `PING`/`PONG`, and debug logs for channel joins/notices, sends with their
+  result codes, and received messages.
+- `/spysync status` now shows channel members, the queue and partners.
+
 ## 1.3.8-forever30-fspy.3
 
 - **Live Kill On Sight sync** with other players, no `/reload`. A hidden addon

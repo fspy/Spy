@@ -285,6 +285,9 @@ function Spy:SyncJoinChannel(announce)
 		return
 	end
 	pcall(JoinTemporaryChannel, name)
+	if self.SyncDebug then
+		DEFAULT_CHAT_FRAME:AddMessage(("|cff9933ff[Spy]|r sync: joining channel %s"):format(name))
+	end
 	if announce then
 		C_Timer.After(2, function()
 			Spy:SyncHello(true)
@@ -392,34 +395,67 @@ function Spy:SyncPump()
 		end
 	end
 
-	local result = C_ChatInfo.SendAddonMessage(PREFIX, item.message, chatType, target)
-	if result == 0 or result == nil then
+	local ok, result = pcall(C_ChatInfo.SendAddonMessage, PREFIX, item.message, chatType, target)
+	if not ok then
+		if self.SyncDebug then
+			DEFAULT_CHAT_FRAME:AddMessage(("|cff9933ff[Spy]|r sync: send error: %s"):format(tostring(result)))
+		end
 		table.remove(queue, 1)
-	elseif result == INVALID_CHANNEL and chatType == "CHANNEL" then
-		table.remove(queue, 1)
-		self:SyncNextChannel()
-	elseif RETRY_RESULTS[result] and item.tries < MAX_RETRIES then
-		item.tries = item.tries + 1
 	else
-		table.remove(queue, 1)
+		if self.SyncDebug then
+			local operation = item.message:match("^%d+|([A-Z]+)|") or "?"
+			DEFAULT_CHAT_FRAME:AddMessage(("|cff9933ff[Spy]|r sync: send %s %s %s result %s"):format(
+				operation, tostring(chatType), tostring(target or "-"), tostring(result)))
+		end
+		if result == 0 or result == nil then
+			table.remove(queue, 1)
+		elseif result == INVALID_CHANNEL and chatType == "CHANNEL" then
+			table.remove(queue, 1)
+			self:SyncNextChannel()
+		elseif RETRY_RESULTS[result] and item.tries < MAX_RETRIES then
+			item.tries = item.tries + 1
+		else
+			table.remove(queue, 1)
+		end
 	end
 	self:SyncPumpLater(SEND_INTERVAL)
+end
+
+function Spy:SyncPartnerNames()
+	local partners = Spy.db and Spy.db.profile and Spy.db.profile.SyncPartners
+	local names = {}
+	if type(partners) ~= "table" then
+		return names
+	end
+	for name, enabled in pairs(partners) do
+		if enabled and type(name) == "string" and name ~= "" then
+			names[#names + 1] = name
+		end
+	end
+	table.sort(names)
+	return names
 end
 
 function Spy:SyncSend(body, priority, target)
 	if target then
 		return self:SyncQueueMessage("WHISPER", body, target, priority)
 	end
+	local sent = false
 	if self:SyncChannelName() and not self.SyncChannelFailed then
-		if self:SyncQueueMessage("CHANNEL", body, nil, priority) then
-			return true
+		sent = self:SyncQueueMessage("CHANNEL", body, nil, priority) or sent
+	else
+		local group = GroupChannel()
+		if group then
+			sent = self:SyncQueueMessage(group, body, nil, priority) or sent
 		end
 	end
-	local group = GroupChannel()
-	if group then
-		return self:SyncQueueMessage(group, body, nil, priority)
+	-- Partners get the same message by whisper, so a broken channel is not fatal.
+	for _, name in ipairs(self:SyncPartnerNames()) do
+		if self:SyncQueueMessage("WHISPER", body, name, priority) then
+			sent = true
+		end
 	end
-	return false
+	return sent
 end
 
 function Spy:SyncHello(force, target)
@@ -737,12 +773,24 @@ function Spy:SyncHandle(operation, rest, source, isWhisper)
 		if name and timestamp and self:SyncMergeRemoved(Unescape(name), tonumber(timestamp), source) then
 			self:SyncRefresh()
 		end
+
+	elseif operation == "PING" then
+		self:SyncSend("PONG|" .. tostring(rest or ""), "NORMAL", isWhisper and source or nil)
+		DEFAULT_CHAT_FRAME:AddMessage(L["SpySignatureColored"] .. L["SyncPingReceived"]:format(tostring(source or "?")))
+
+	elseif operation == "PONG" then
+		DEFAULT_CHAT_FRAME:AddMessage(L["SpySignatureColored"] .. L["SyncPongReceived"]:format(tostring(source or "?")))
 	end
 end
 
 function Spy:SyncAddonEvent(event, prefix, message, channel, sender)
 	if prefix ~= PREFIX or type(message) ~= "string" or sender == self.CharacterName then
 		return
+	end
+	if self.SyncDebug then
+		local operation = message:match("^%d+|([A-Z]+)|") or "?"
+		DEFAULT_CHAT_FRAME:AddMessage(("|cff9933ff[Spy]|r sync: recv %s from %s via %s"):format(
+			operation, tostring(sender), tostring(channel)))
 	end
 	if not self:SyncEnabled() then
 		return
@@ -769,6 +817,10 @@ function Spy:SyncChannelNotice(event, notice, ...)
 				end
 			end
 		end
+	end
+	if self.SyncDebug then
+		DEFAULT_CHAT_FRAME:AddMessage(("|cff9933ff[Spy]|r sync: channel notice %s for %s"):format(
+			tostring(notice), tostring(found or "?")))
 	end
 	if not found then
 		return
@@ -928,7 +980,8 @@ function Spy:SyncStatus()
 	if self:SyncChannelName() then
 		local name, id = self:SyncActiveChannel()
 		if id then
-			transport = L["SyncViaChannel"]:format(name, #(self.SyncQueue or {}))
+			local members = (GetNumChannelMembers and GetNumChannelMembers(id)) or 0
+			transport = L["SyncViaChannel"]:format(name, members, #(self.SyncQueue or {}))
 		else
 			transport = L["SyncChannelWaiting"]:format(self:SyncChannelName())
 		end
@@ -937,7 +990,9 @@ function Spy:SyncStatus()
 	else
 		transport = L["SyncNoTransport"]
 	end
-	return L["SyncStatus"]:format(count, digest, self:SyncEnabled() and L["On"] or L["Off"], transport)
+	local partners = self:SyncPartnerNames()
+	return L["SyncStatus"]:format(count, digest, self:SyncEnabled() and L["On"] or L["Off"],
+		transport, #partners > 0 and table.concat(partners, ", ") or L["SyncNoPartners"])
 end
 
 function Spy:SyncInitialize()
@@ -1063,6 +1118,59 @@ SlashCmdList["SPYSYNC"] = function(message)
 			Spy:SyncSendSnapshot("manual", name)
 			DEFAULT_CHAT_FRAME:AddMessage(L["SpySignatureColored"] .. L["SyncWhisperSent"]:format(name))
 		end
+	elseif command == "partner" then
+		local name = ShortName(strtrim(argument or ""))
+		if not name or name == "" then
+			local partners = Spy:SyncPartnerNames()
+			DEFAULT_CHAT_FRAME:AddMessage(L["SpySignatureColored"] .. L["SyncPartnerList"]:format(
+				#partners > 0 and table.concat(partners, ", ") or L["SyncNoPartners"]))
+		elseif name:lower() == "off" or name:lower() == "clear" then
+			Spy.db.profile.SyncPartners = {}
+			DEFAULT_CHAT_FRAME:AddMessage(L["SpySignatureColored"] .. L["SyncPartnersCleared"])
+		else
+			Spy.db.profile.SyncPartners = Spy.db.profile.SyncPartners or {}
+			local enabled = not Spy.db.profile.SyncPartners[name]
+			Spy.db.profile.SyncPartners[name] = enabled and true or nil
+			if enabled then
+				DEFAULT_CHAT_FRAME:AddMessage(L["SpySignatureColored"] .. L["SyncPartnerAdded"]:format(name))
+				Spy:SyncHello(true, name)
+				Spy:SyncSendSnapshot("manual", name)
+			else
+				DEFAULT_CHAT_FRAME:AddMessage(L["SpySignatureColored"] .. L["SyncPartnerRemoved"]:format(name))
+			end
+		end
+	elseif command == "test" then
+		local name, id = Spy:SyncActiveChannel()
+		local metadata = C_AddOns and C_AddOns.GetAddOnMetadata
+		local version = metadata and metadata("Spy", "Version") or "?"
+		local lines = {
+			L["SyncTestVersion"]:format(tostring(version), Spy.db.profile.SyncKOS and L["On"] or L["Off"]),
+			L["SyncTestChannel"]:format(tostring(Spy:SyncChannelName() or "-"), tostring(id or "-"),
+				tostring(Spy.SyncChannelIndex or "-"), tostring(Spy.SyncChannelFailed or false)),
+			L["SyncTestState"]:format(#(Spy.SyncQueue or {}), (select(2, Digest())),
+				#Spy:SyncPartnerNames() > 0 and table.concat(Spy:SyncPartnerNames(), ", ") or L["SyncNoPartners"]),
+		}
+		for _, line in ipairs(lines) do
+			DEFAULT_CHAT_FRAME:AddMessage(L["SpySignatureColored"] .. line)
+		end
+		Spy:SyncJoinChannel(false)
+		C_Timer.After(2, function()
+			local active, activeID = Spy:SyncActiveChannel()
+			if not activeID then
+				DEFAULT_CHAT_FRAME:AddMessage(L["SpySignatureColored"] .. L["SyncTestNoChannel"])
+				return
+			end
+			local nonce = tostring(time()) .. tostring(math.random(100, 999))
+			local ok, result = pcall(C_ChatInfo.SendAddonMessage, PREFIX, "1|PING|" .. nonce, "CHANNEL", tostring(activeID))
+			DEFAULT_CHAT_FRAME:AddMessage(L["SpySignatureColored"] .. L["SyncTestPing"]:format(
+				tostring(active), tostring(ok), tostring(result)))
+			for _, partner in ipairs(Spy:SyncPartnerNames()) do
+				local ok2, result2 = pcall(C_ChatInfo.SendAddonMessage, PREFIX, "1|PING|" .. nonce, "WHISPER", partner)
+				DEFAULT_CHAT_FRAME:AddMessage(L["SpySignatureColored"] .. L["SyncTestWhisper"]:format(
+					partner, tostring(ok2), tostring(result2)))
+			end
+			DEFAULT_CHAT_FRAME:AddMessage(L["SpySignatureColored"] .. L["SyncTestHint"])
+		end)
 	elseif command == "debug" then
 		Spy.SyncDebug = not Spy.SyncDebug
 		DEFAULT_CHAT_FRAME:AddMessage(L["SpySignatureColored"] .. (Spy.SyncDebug and L["SyncDebugOn"] or L["SyncDebugOff"]))

@@ -1,4 +1,4 @@
-local AceLocale = LibStub:GetLibrary("AceLocale-3.0")
+﻿local AceLocale = LibStub:GetLibrary("AceLocale-3.0")
 local L = AceLocale:NewLocale("Spy", "enUS", true)
 if not L then return end
 
@@ -271,9 +271,23 @@ L["SyncChannelDescription"] = "The chat channel used for the shared Kill On Sigh
 L["SyncOn"] = "Kill On Sight sync is on."
 L["SyncOff"] = "Kill On Sight sync is off."
 L["SyncNow"] = "Asked the channel for its Kill On Sight list and sent yours."
-L["SyncHelp"] = "/spysync on | off | status | now | channel <name|off> | whisper <player> | debug"
-L["SyncStatus"] = "%d entries, digest %s, sync %s, %s"
-L["SyncViaChannel"] = "channel %s, %d messages waiting"
+L["SyncHelp"] = "/spysync on | off | status | now | channel <name|off> | partner <player> | whisper <player> | test | debug"
+L["SyncPartnerList"] = "Sync partners: %s"
+L["SyncPartnerAdded"] = "%s is now a sync partner."
+L["SyncPartnerRemoved"] = "%s is no longer a sync partner."
+L["SyncPartnersCleared"] = "Sync partners cleared."
+L["SyncNoPartners"] = "none"
+L["SyncPingReceived"] = "Sync ping received from %s."
+L["SyncPongReceived"] = "Sync pong received from %s."
+L["SyncTestVersion"] = "Spy %s, sync %s"
+L["SyncTestChannel"] = "channel %s, id %s, index %s, failed %s"
+L["SyncTestState"] = "queue %d, entries %d, partners %s"
+L["SyncTestNoChannel"] = "No channel joined (join failed or still waiting). Check the channel name, or use /spysync partner <player>."
+L["SyncTestPing"] = "Channel %s ping sent=%s result=%s"
+L["SyncTestWhisper"] = "Partner %s whisper sent=%s result=%s"
+L["SyncTestHint"] = "No pong? The other side did not receive it. Both need /spysync on; /spysync partner <player> works without a channel."
+L["SyncStatus"] = "%d entries, digest %s, sync %s, %s; partners: %s"
+L["SyncViaChannel"] = "channel %s (%d members), %d messages waiting"
 L["SyncChannelWaiting"] = "waiting for channel %s"
 L["SyncViaGroup"] = "party/raid (%s), no channel"
 L["SyncNoTransport"] = "no channel and not in a group"

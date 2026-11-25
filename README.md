@@ -14,24 +14,24 @@ The addon folder **must** be named `Spy` — that is where the game reads
 ### WowUp (GitHub provider)
 
 1. WowUp → Settings → Addon providers → enable **GitHub**.
-2. Get Addons → Install from URL → paste `https://github.com/fspy/spy-forever`.
+2. Get Addons → Install from URL → paste `https://github.com/fspy/Spy`.
 3. Updates appear in WowUp like any other addon.
 
 ### Git
 
 ```sh
 cd "World of Warcraft/_forever_/Interface/AddOns"
-git clone https://github.com/fspy/spy-forever.git Spy
+git clone https://github.com/fspy/Spy.git Spy
 ```
 
 Update with `git -C Spy pull`.
 
 ### Release zip
 
-Download **[Spy.zip](https://github.com/fspy/spy-forever/releases/latest/download/Spy.zip)**
+Download **[Spy.zip](https://github.com/fspy/Spy/releases/latest/download/Spy.zip)**
 and extract it into `World of Warcraft/_forever_/Interface/AddOns/` (the zip contains
 a `Spy/` folder). Do not use GitHub's "Download ZIP" from the repository root — it
-extracts as `spy-forever-main` and WoW will not load it.
+extracts as `Spy-main` and WoW will not load it.
 
 The versioned asset (`Spy-<version>.zip`) is the same file.
 
@@ -66,6 +66,10 @@ Sight entries, reasons and notes sync live, with no `/reload`.
   same channel name.
 - The game can refuse a channel (crowded, locked or switched off); Spy retries
   and moves to `SpyKOSB` … `SpyKOSE`, then falls back to party/raid messages.
+- If a channel still does not deliver, add your friend as a sync partner:
+  `/spysync partner <player>`. Every change is also whispered to partners, which
+  works without a channel. `/spysync test` prints the channel state and pings
+  the channel and partners.
 - Everyone in the channel with sync on can add and remove entries. Only use a
   channel with people you trust.
 - Removals leave a tombstone for 90 days; the later change wins, using the
@@ -81,8 +85,10 @@ Commands:
 | `/spysync status` | Entries, digest, transport and queue |
 | `/spysync now` | Send your list and ask the channel for theirs |
 | `/spysync channel <name>` | Use a channel (or `off` for party/raid only) |
+| `/spysync partner <player>` | Add/remove a whisper sync partner (no channel needed) |
 | `/spysync whisper <player>` | Send your list to one player over whisper |
-| `/spysync debug` | Print every applied sync change |
+| `/spysync test` | Print channel/partner state and ping both |
+| `/spysync debug` | Print every sent, received and applied sync message |
 
 ## Commands
 

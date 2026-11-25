@@ -1,4 +1,4 @@
-local SM = LibStub:GetLibrary("LibSharedMedia-3.0")
+﻿local SM = LibStub:GetLibrary("LibSharedMedia-3.0")
 local HBD = LibStub("HereBeDragons-2.0")
 local HBDP = LibStub("HereBeDragons-Pins-2.0")
 local AceLocale = LibStub("AceLocale-3.0")
@@ -1482,6 +1482,7 @@ local Default_Profile = {
 		ShareKOSBetweenCharacters=true,
 		SyncKOS=false,
 		SyncChannel="SpyKOS",
+		SyncPartners={},
 		AppendUnitNameCheck=false,
 		AppendUnitKoSCheck=false,
 		FilteredZones = {
