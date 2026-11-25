@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.8-forever30-fspy.3
+
+- **Live Kill On Sight sync** with other players, no `/reload`. A hidden addon
+  channel carries entries, reasons and notes; party/raid/whisper messages are
+  used when no channel is available. Channel failures retry and move to backups
+  (`SpyKOSB` … `SpyKOSE`).
+- `/spysync on|off|status|now|channel|whisper|debug`, plus options under
+  **Data** for the toggle and channel name.
+- Per-character sync journal with server-clock timestamps and 90-day tombstones,
+  so adds, reason changes and removals converge between players.
+
 ## 1.3.8-forever30-fspy.2
 
 - Statistics window: right-clicking any player now offers **Set Kill On Sight reason**,

@@ -47,7 +47,39 @@ Without "Always show nameplates" the game only shows nameplates in combat.
 - Watched guilds and a watch list for your own faction.
 - Statistics, win/loss records, and a combat map with skull markers.
 - Sharing detections with party, raid or guild (off by default).
+- **Live Kill On Sight sync** with other players — see below.
 - Options window with live preview; minimap button.
+
+## Live Kill On Sight sync
+
+Off by default. Turn it on with `/spysync on`.
+
+Spy joins a hidden chat channel and exchanges addon messages there (the same
+technique Happy Camper uses for camps). The lines never appear in chat. Kill On
+Sight entries, reasons and notes sync live, with no `/reload`.
+
+- Default channel: `SpyKOS`. For a guild or friend group, set your own:
+  `/spysync channel spy-kos-my-guild`. Everyone who should share must use the
+  same channel name.
+- The game can refuse a channel (crowded, locked or switched off); Spy retries
+  and moves to `SpyKOSB` … `SpyKOSE`, then falls back to party/raid messages.
+- Everyone in the channel with sync on can add and remove entries. Only use a
+  channel with people you trust.
+- Removals leave a tombstone for 90 days; the later change wins, using the
+  server clock.
+- Notes are shortened to 60 characters in sync, and a snapshot carries at most
+  300 entries.
+
+Commands:
+
+| Command | Action |
+| --- | --- |
+| `/spysync on` / `off` | Turn KOS sync on / off |
+| `/spysync status` | Entries, digest, transport and queue |
+| `/spysync now` | Send your list and ask the channel for theirs |
+| `/spysync channel <name>` | Use a channel (or `off` for party/raid only) |
+| `/spysync whisper <player>` | Send your list to one player over whisper |
+| `/spysync debug` | Print every applied sync change |
 
 ## Commands
 
