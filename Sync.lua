@@ -22,7 +22,7 @@ local AceLocale = LibStub("AceLocale-3.0")
 local L = AceLocale:GetLocale("Spy", true)
 
 local PREFIX = "SpyKOS"
-local PROTOCOL = 1
+local PROTOCOL = 2
 local MAX_MESSAGE = 250          -- the game truncates addon messages past 255
 local SEND_INTERVAL = 1          -- seconds between addon messages
 local MAX_RETRIES = 5
@@ -33,6 +33,7 @@ local SNAP_COOLDOWN = 45
 local SNAP_TIMEOUT = 180
 local FLUSH_DELAY = 0.4
 local MAX_SYNC_ENTRIES = 300
+local MAX_SYNC_GUILDS = 100
 local NOTE_SYNC_LIMIT = 60
 local TOMBSTONE_DAYS = 90
 
@@ -68,6 +69,8 @@ local function State()
 	state.version = 1
 	state.entries = state.entries or {}
 	state.removed = state.removed or {}
+	state.guilds = state.guilds or {}
+	state.guildsRemoved = state.guildsRemoved or {}
 	return state
 end
 
@@ -168,6 +171,37 @@ local function DecodeEntry(record)
 	}
 end
 
+local function EncodeGuild(key, guild)
+	local reason = tostring(guild.reason or "")
+	if #reason > NOTE_SYNC_LIMIT then
+		reason = reason:sub(1, NOTE_SYNC_LIMIT)
+	end
+	return table.concat({
+		Escape(key),
+		tostring(guild.added or 0),
+		tostring(guild.updated or 0),
+		Escape(guild.name or key),
+		Escape(reason),
+	}, "~")
+end
+
+local function DecodeGuild(record)
+	local key, added, updated, name, reason = strsplit("~", record)
+	if not key then
+		return
+	end
+	key = Unescape(key):lower()
+	if key == "" then
+		return
+	end
+	return key, {
+		added = tonumber(added) or 0,
+		updated = tonumber(updated) or 0,
+		name = Unescape(name or key),
+		reason = Unescape(reason or ""),
+	}
+end
+
 local function NoteStore()
 	SpyDB.playerNotes = SpyDB.playerNotes or {}
 	local realm = tostring(Spy.StoreRealm or Spy.RealmName or "?")
@@ -193,6 +227,14 @@ local function Digest()
 	end
 	for name, timestamp in pairs(state.removed) do
 		parts[#parts + 1] = name .. "!" .. tostring(timestamp)
+	end
+	for key, guild in pairs(state.guilds) do
+		if not state.guildsRemoved[key] then
+			parts[#parts + 1] = "g:" .. key .. ":" .. tostring(guild.updated or 0)
+		end
+	end
+	for key, timestamp in pairs(state.guildsRemoved) do
+		parts[#parts + 1] = "h:" .. key .. "!" .. tostring(timestamp)
 	end
 	table.sort(parts)
 	local checksum, count = 5381, #parts
@@ -563,6 +605,16 @@ function Spy:SyncSendSnapshot(reason, target)
 	for name, timestamp in pairs(state.removed) do
 		records[#records + 1] = "D" .. Escape(name) .. "~" .. tostring(timestamp)
 	end
+	local guilds = 0
+	for key, guild in pairs(state.guilds) do
+		if not state.guildsRemoved[key] and guilds < MAX_SYNC_GUILDS then
+			records[#records + 1] = "G" .. EncodeGuild(key, guild)
+			guilds = guilds + 1
+		end
+	end
+	for key, timestamp in pairs(state.guildsRemoved) do
+		records[#records + 1] = "H" .. Escape(key) .. "~" .. tostring(timestamp)
+	end
 	table.sort(records)
 	if #records == 0 then
 		return
@@ -671,6 +723,86 @@ function Spy:SyncMergeRemoved(name, timestamp, source)
 	return true
 end
 
+function Spy:SyncApplyGuild(key, guild)
+	local list = self:GuildList()
+	list[key] = {
+		name = (guild.name ~= "" and guild.name) or key,
+		reason = (guild.reason ~= "" and guild.reason) or nil,
+		added = guild.added,
+	}
+	local state = State()
+	state.guilds[key] = {
+		name = list[key].name,
+		reason = guild.reason or "",
+		added = guild.added,
+		updated = guild.updated,
+	}
+	state.guildsRemoved[key] = nil
+	self:RefreshGuildOptions()
+end
+
+function Spy:SyncMergeGuild(key, guild, source)
+	key = tostring(key or ""):lower()
+	if key == "" or not guild then
+		return false
+	end
+	local state = State()
+	local removed = state.guildsRemoved[key]
+	if removed and removed > (guild.updated or 0) then
+		return false
+	end
+	local current = state.guilds[key]
+	if current and (current.updated or 0) > (guild.updated or 0) then
+		return false
+	end
+	if current and current.updated == guild.updated then
+		guild.reason = guild.reason ~= "" and guild.reason or current.reason
+		guild.name = current.name or guild.name
+	end
+	local added = guild.added or 0
+	if current and (current.added or 0) > 0 then
+		added = (added > 0 and math.min(added, current.added)) or current.added
+	end
+	if added == 0 then
+		added = Now()
+	end
+	guild.added = added
+	guild.updated = math.max((current and current.updated) or 0, guild.updated or 0)
+	if guild.updated == 0 then
+		guild.updated = added
+	end
+	self:SyncApplyGuild(key, guild)
+	if self.SyncDebug then
+		DEFAULT_CHAT_FRAME:AddMessage(("|cff9933ff[Spy]|r sync: %s guild %s from %s"):format(
+			current and "updated" or "added", tostring(guild.name), tostring(source or "?")))
+	end
+	return true
+end
+
+function Spy:SyncMergeGuildRemoved(key, timestamp, source)
+	key = tostring(key or ""):lower()
+	if key == "" then
+		return false
+	end
+	local state = State()
+	local current = state.guilds[key]
+	if current and (current.updated or 0) > timestamp then
+		return false
+	end
+	local list = self:GuildList()
+	if list[key] then
+		list[key] = nil
+	end
+	state.guilds[key] = nil
+	state.guildsRemoved[key] = math.max(state.guildsRemoved[key] or 0, timestamp)
+	self:RefreshGuildOptions()
+	if self.SyncDebug then
+		DEFAULT_CHAT_FRAME:AddMessage(("|cff9933ff[Spy]|r sync: removed guild %s from %s"):format(
+			tostring(key), tostring(source or "?")))
+	end
+	return true
+end
+
 function Spy:SyncRefresh()
 	if InCombatLockdown() then
 		self.SyncRefreshPending = true
@@ -698,6 +830,16 @@ function Spy:SyncReceiveSnapshot(payload, source)
 		elseif kind == "D" then
 			local name, timestamp = record:sub(2):match("^([^~]+)~(%d+)$")
 			if name and timestamp and self:SyncMergeRemoved(Unescape(name), tonumber(timestamp), source) then
+				changed = true
+			end
+		elseif kind == "G" then
+			local key, guild = DecodeGuild(record:sub(2))
+			if key and guild and self:SyncMergeGuild(key, guild, source) then
+				changed = true
+			end
+		elseif kind == "H" then
+			local key, timestamp = record:sub(2):match("^([^~]+)~(%d+)$")
+			if key and timestamp and self:SyncMergeGuildRemoved(Unescape(key):lower(), tonumber(timestamp), source) then
 				changed = true
 			end
 		end
@@ -806,6 +948,18 @@ function Spy:SyncHandle(operation, rest, source, isWhisper)
 	elseif operation == "DEL" then
 		local name, timestamp = rest:match("^([^|]+)|(%d+)$")
 		if name and timestamp and self:SyncMergeRemoved(Unescape(name), tonumber(timestamp), source) then
+			self:SyncRefresh()
+		end
+
+	elseif operation == "GSET" then
+		local key, guild = DecodeGuild(rest)
+		if key and guild and self:SyncMergeGuild(key, guild, source) then
+			self:SyncRefresh()
+		end
+
+	elseif operation == "GDEL" then
+		local key, timestamp = rest:match("^([^|]+)|(%d+)$")
+		if key and timestamp and self:SyncMergeGuildRemoved(Unescape(key):lower(), tonumber(timestamp), source) then
 			self:SyncRefresh()
 		end
 
@@ -919,6 +1073,39 @@ function Spy:SyncTouch(name)
 	self:SyncScheduleFlush()
 end
 
+function Spy:SyncTouchGuild(guild)
+	if self.SyncApplying or not SpyDB then
+		return
+	end
+	local entry = self:WatchedGuild(guild)
+	local key = type(guild) == "string" and strtrim(guild):lower() or nil
+	if not key or key == "" then
+		return
+	end
+	local state = State()
+	local current = Now()
+	if entry then
+		local data = state.guilds[key]
+		if not data then
+			data = { added = entry.added or current, reason = "" }
+			state.guilds[key] = data
+		end
+		data.name = entry.name or guild
+		data.reason = entry.reason or ""
+		data.added = math.min(data.added or entry.added or current, entry.added or current)
+		data.updated = current
+		state.guildsRemoved[key] = nil
+	else
+		if state.guilds[key] then
+			state.guilds[key] = nil
+			state.guildsRemoved[key] = current
+		end
+	end
+	self.SyncGuildDirty = self.SyncGuildDirty or {}
+	self.SyncGuildDirty[key] = true
+	self:SyncScheduleFlush()
+end
+
 function Spy:SyncFlush()
 	if not self:SyncEnabled() then
 		return
@@ -926,12 +1113,22 @@ function Spy:SyncFlush()
 	local state = State()
 	local dirty = self.SyncDirty or {}
 	self.SyncDirty = {}
+	local guildDirty = self.SyncGuildDirty or {}
+	self.SyncGuildDirty = {}
 	for name in pairs(dirty) do
 		local entry = state.entries[name]
 		if entry and not state.removed[name] then
 			self:SyncSend("SET|" .. EncodeEntry(name, entry), "ALERT")
 		elseif state.removed[name] then
 			self:SyncSend("DEL|" .. Escape(name) .. "|" .. tostring(state.removed[name]), "ALERT")
+		end
+	end
+	for key in pairs(guildDirty) do
+		local guild = state.guilds[key]
+		if guild and not state.guildsRemoved[key] then
+			self:SyncSend("GSET|" .. EncodeGuild(key, guild), "ALERT")
+		elseif state.guildsRemoved[key] then
+			self:SyncSend("GDEL|" .. Escape(key) .. "|" .. tostring(state.guildsRemoved[key]), "ALERT")
 		end
 	end
 end
@@ -961,6 +1158,28 @@ function Spy:SyncReconcile()
 		state.removed[name] = nil
 	end
 
+	local guilds = self:GuildList()
+	local seenGuilds = {}
+	for key, entry in pairs(guilds) do
+		seenGuilds[key] = true
+		local guild = state.guilds[key]
+		if not guild then
+			guild = { added = entry.added or current, updated = entry.added or current, name = entry.name, reason = "" }
+			state.guilds[key] = guild
+		end
+		guild.name = entry.name or key
+		guild.reason = entry.reason or guild.reason or ""
+		state.guildsRemoved[key] = nil
+	end
+	if state.initialized then
+		for key in pairs(state.guilds) do
+			if not seenGuilds[key] and not state.guildsRemoved[key] then
+				state.guilds[key] = nil
+				state.guildsRemoved[key] = current
+			end
+		end
+	end
+
 	if state.initialized then
 		for name in pairs(state.entries) do
 			if not seen[name] and not state.removed[name] then
@@ -975,6 +1194,11 @@ function Spy:SyncReconcile()
 	for name, timestamp in pairs(state.removed) do
 		if timestamp < cutoff then
 			state.removed[name] = nil
+		end
+	end
+	for key, timestamp in pairs(state.guildsRemoved) do
+		if timestamp < cutoff then
+			state.guildsRemoved[key] = nil
 		end
 	end
 end
@@ -1014,7 +1238,19 @@ function Spy:SyncCombatEnded()
 end
 
 function Spy:SyncStatus()
-	local digest, count = Digest()
+	local state = State()
+	local entries, guilds = 0, 0
+	for name in pairs(state.entries) do
+		if not state.removed[name] then
+			entries = entries + 1
+		end
+	end
+	for key in pairs(state.guilds) do
+		if not state.guildsRemoved[key] then
+			guilds = guilds + 1
+		end
+	end
+	local digest = Digest()
 	local transport
 	if self:SyncChannelName() then
 		local name, id = self:SyncActiveChannel()
@@ -1030,7 +1266,7 @@ function Spy:SyncStatus()
 		transport = L["SyncNoTransport"]
 	end
 	local partners = self:SyncPartnerNames()
-	return L["SyncStatus"]:format(count, digest, self:SyncEnabled() and L["On"] or L["Off"],
+	return L["SyncStatus"]:format(entries, guilds, digest, self:SyncEnabled() and L["On"] or L["Off"],
 		transport, #partners > 0 and table.concat(partners, ", ") or L["SyncNoPartners"])
 end
 
@@ -1071,6 +1307,12 @@ local baseSetPlayerNote = Spy.SetPlayerNote
 function Spy:SetPlayerNote(name, text)
 	baseSetPlayerNote(self, name, text)
 	self:SyncTouch(name)
+end
+
+local baseToggleGuild = Spy.ToggleGuild
+function Spy:ToggleGuild(guild, reason, quiet)
+	baseToggleGuild(self, guild, reason, quiet)
+	self:SyncTouchGuild(guild)
 end
 
 -- Options -----------------------------------------------------------------------

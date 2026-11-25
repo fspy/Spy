@@ -65,7 +65,9 @@ Off by default. Turn it on with `/spysync on`.
 
 Spy joins a hidden chat channel and exchanges addon messages there (the same
 technique Happy Camper uses for camps). The lines never appear in chat. Kill On
-Sight entries, reasons and notes sync live, with no `/reload`.
+Sight entries, reasons, notes and the **watched guild list** sync live, with no
+`/reload`. Adding or removing a watched guild (and its reason) propagates the
+same way.
 
 - Default channel: `SpyKOS`. For a guild or friend group, set your own:
   `/spysync channel spy-kos-my-guild`. Everyone who should share must use the
@@ -81,6 +83,7 @@ Sight entries, reasons and notes sync live, with no `/reload`.
   the channel and partners.
 - Everyone in the channel with sync on can add and remove entries. Only use a
   channel with people you trust.
+- Both players must run the same sync protocol; update both to fspy.7 or newer.
 - Removals leave a tombstone for 90 days; the later change wins, using the
   server clock.
 - Notes are shortened to 60 characters in sync, and a snapshot carries at most
@@ -91,7 +94,7 @@ Commands:
 | Command | Action |
 | --- | --- |
 | `/spysync on` / `off` | Turn KOS sync on / off |
-| `/spysync status` | Entries, digest, transport and queue |
+| `/spysync status` | Entries, watched guilds, digest, transport and queue |
 | `/spysync now` | Send your list and ask the channel for theirs |
 | `/spysync channel <name>` | Use a channel (or `off` for party/raid only) |
 | `/spysync partner <player>` | Add/remove a whisper sync partner (no channel needed) |

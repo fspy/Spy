@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.3.8-forever30-fspy.7
+
+- Watched guilds now sync too: guild name, reason, adds and removals travel in
+  the journal, deltas and snapshots, with the same server-clock and 90-day
+  tombstone rules as Kill On Sight players.
+- The sync digest covers guilds, and `/spysync status` reports entries and
+  guilds separately.
+- Sync protocol bumped to 2: update every player to fspy.7 or newer.
+
 ## 1.3.8-forever30-fspy.6
 
 - Channel joins are retried in the background (every 10 seconds) while sync is
