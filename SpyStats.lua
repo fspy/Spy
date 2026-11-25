@@ -17,6 +17,19 @@ local COLOR_NORMAL = {1, 1, 1}
 local COLOR_SAME_FACTION = {0, 1, 0}
 local COLOR_KOS = {1, 0, 0}
 
+-- Forever: the Statistics list keeps every player ever met, so a reason has to be
+-- reachable for someone who is not on the Kill On Sight list yet. Picking a reason
+-- adds the player to the list first.
+local function StatsUnitIsKOS(name)
+	return name and SpyPerCharDB.KOSData[name] ~= nil
+end
+
+local function AddStatsUnitToKOS(name)
+	if not StatsUnitIsKOS(name) then
+		Spy:ToggleKOSPlayer(true, name)
+	end
+end
+
 GUI.ListFrameLines = {
     [VIEW_PLAYER_HISTORY] = {},
 }
@@ -190,7 +203,7 @@ function SpyStats:Filter()
     for _, unit in ipairs(units.recent) do
         local session = SpyData:GetUnitSession(unit)
 
-        if (filter == "" or (unit.name and unit.name:sub(1, string.len(filter)):lower() == filter:lower()) or (unit.guild and unit.guild:sub(1, string.len(filter)):lower() == filter:lower())) and (not filterkos or unit.kos) and (not filterrealm or unit.name and not unit.name:find "-") and (not filterpvp or ((unit.wins and unit.wins > 0) or (unit.loses and unit.loses > 0))) and (not filterreason or unit.reason) then
+        if (filter == "" or (unit.name and unit.name:sub(1, string.len(filter)):lower() == filter:lower()) or (unit.guild and unit.guild:sub(1, string.len(filter)):lower() == filter:lower())) and (not filterkos or unit.kos or StatsUnitIsKOS(unit.name)) and (not filterrealm or unit.name and not unit.name:find "-") and (not filterpvp or ((unit.wins and unit.wins > 0) or (unit.loses and unit.loses > 0))) and (not filterreason or unit.reason) then
 			units.display[i] = unit
 			i = i + 1
         end
@@ -236,7 +249,7 @@ function SpyStats:Refresh()
             local age = now - unit.time
 
             local r, g, b
-            if unit.kos and (age < 60) then
+            if (unit.kos or StatsUnitIsKOS(unit.name)) and (age < 60) then
                 r, g, b = unpack(COLOR_KOS)
             elseif unit.faction and unit.faction == Spy.FactionName then
                 r, g, b = unpack(COLOR_SAME_FACTION)
@@ -367,76 +380,136 @@ function SpyStats:Cleanup()
     for i in ipairs(units.display) do units.display[i] = nil end
 end
 
-function CreateStatsDropdown(node)
-    local info = {}
-    local unit = node.unit
-    local session = SpyData:GetUnitSession(unit)
-    if UIDROPDOWNMENU_MENU_LEVEL == 1 then
-        info = UIDropDownMenu_CreateInfo()
-        info.isTitle = true
-        info.text = unit.name
-		info.notCheckable = true
-        UIDropDownMenu_AddButton(info, UIDROPDOWNMENU_MENU_LEVEL)
+-- Forever: the Statistics list keeps every player ever met, so a reason has to be
+-- reachable for someone who is not on the Kill On Sight list yet. Picking a reason
+-- adds the player to the list first.
+local function StatsReasonMenu(info, level)
+	info.isTitle = nil
+	info.notCheckable = true
+	info.hasArrow = true
+	info.disabled = nil
+	info.text = L["KOSReasonDropDownMenu"]
+	info.value = { ["Key"] = L["KOSReasonDropDownMenu"] }
+	UIDropDownMenu_AddButton(info, level)
+end
 
-		if not unit.kos then
-			info.isTitle = nil
-			info.notCheckable = true
-			info.hasArrow = false
-			info.disabled = nil
-			info.text = L["AddToKOSList"]
-			info.func = function()
-				Spy:ToggleKOSPlayer(true, unit.name)
-			end
-			info.value = nil
-			UIDropDownMenu_AddButton(info, UIDROPDOWNMENU_MENU_LEVEL)
-			
-			info.isTitle = nil
-			info.notCheckable = true
-			info.hasArrow = false
-			info.disabled = nil
-			info.text = L["RemoveFromStatsList"]
-			info.func = function() 
-				Spy:RemovePlayerDataFromStats(unit.name)
-				SpyStats:Recalulate()
-			end 
-			info.value = nil
-			UIDropDownMenu_AddButton(info, UIDROPDOWNMENU_MENU_LEVEL)
-		else
+function CreateStatsDropdown(node)
+	local unit = node and node.unit
+	if not unit or not unit.name then
+		return
+	end
+	local level = UIDROPDOWNMENU_MENU_LEVEL
+	if not level then
+		return
+	end
+
+	local player = unit.name
+	local info
+
+	if level == 1 then
+		info = UIDropDownMenu_CreateInfo()
+		info.isTitle = true
+		info.text = player
+		info.notCheckable = true
+		UIDropDownMenu_AddButton(info, level)
+
+		info = UIDropDownMenu_CreateInfo()
+		if StatsUnitIsKOS(player) then
+			StatsReasonMenu(info, level)
+
 			info = UIDropDownMenu_CreateInfo()
 			info.notCheckable = true
-			info.text = L["KOSReasonDropDownMenu"]
-			info.value = unit
-			info.func = function()
-				Spy:SetKOSReason(unit.name, L["KOSReasonOther"], other)
-			end
-			info.checked = false
-			UIDropDownMenu_AddButton(info, UIDROPDOWNMENU_MENU_LEVEL)
-			
-			info.isTitle = nil
-			info.notCheckable = true
-			info.hasArrow = false
-			info.disabled = nil
 			info.text = L["RemoveFromKOSList"]
 			info.func = function()
-				Spy:ToggleKOSPlayer(false, unit.name)
+				Spy:ToggleKOSPlayer(false, player)
+				SpyStats:Recalulate()
 			end
-			info.value = nil
-			UIDropDownMenu_AddButton(info, UIDROPDOWNMENU_MENU_LEVEL)
+			UIDropDownMenu_AddButton(info, level)
 
-			info.isTitle = nil
+			info = UIDropDownMenu_CreateInfo()
 			info.notCheckable = true
-			info.hasArrow = false
-			info.disabled = nil
 			info.text = L["KOSReasonClear"]
 			info.func = function()
-				Spy:SetKOSReason(unit.name, nil)
+				Spy:SetKOSReason(player, nil)
+				SpyStats:Recalulate()
+				CloseDropDownMenus(1)
 			end
-			info.value = nil
-			UIDropDownMenu_AddButton(info, UIDROPDOWNMENU_MENU_LEVEL)
-		end	
+			UIDropDownMenu_AddButton(info, level)
+		else
+			info.notCheckable = true
+			info.text = L["AddToKOSList"]
+			info.func = function()
+				Spy:ToggleKOSPlayer(true, player)
+				SpyStats:Recalulate()
+			end
+			UIDropDownMenu_AddButton(info, level)
 
-        elseif UIDROPDOWNMENU_MENU_LEVEL == 2 then
-    end 
+			info = UIDropDownMenu_CreateInfo()
+			StatsReasonMenu(info, level)
+		end
+
+		info = UIDropDownMenu_CreateInfo()
+		info.notCheckable = true
+		info.text = L["RemoveFromStatsList"]
+		info.func = function()
+			Spy:RemovePlayerDataFromStats(player)
+			SpyStats:Recalulate()
+		end
+		UIDropDownMenu_AddButton(info, level)
+
+	elseif level == 2 then
+		local key = UIDROPDOWNMENU_MENU_VALUE and UIDROPDOWNMENU_MENU_VALUE["Key"]
+		if key ~= L["KOSReasonDropDownMenu"] then
+			return
+		end
+
+		for i = 1, Spy_KOSReasonListLength do
+			local category = Spy_KOSReasonList[i]
+			info = UIDropDownMenu_CreateInfo()
+			info.notCheckable = true
+			info.hasArrow = true
+			info.text = category.title
+			info.value = { ["Key"] = key, ["Subkey"] = category.title, ["Index"] = i }
+			UIDropDownMenu_AddButton(info, level)
+		end
+
+		info = UIDropDownMenu_CreateInfo()
+		info.notCheckable = true
+		info.text = L["KOSReasonClear"]
+		info.func = function()
+			Spy:SetKOSReason(player, nil)
+			SpyStats:Recalulate()
+			CloseDropDownMenus(1)
+		end
+		UIDropDownMenu_AddButton(info, level)
+
+	elseif level == 3 then
+		local value = UIDROPDOWNMENU_MENU_VALUE
+		if not value or value["Key"] ~= L["KOSReasonDropDownMenu"] then
+			return
+		end
+		local category = Spy_KOSReasonList[value["Index"]]
+		if not category then
+			return
+		end
+		local playerData = SpyPerCharDB.PlayerData[player]
+
+		for _, reason in pairs(category.content) do
+			info = UIDropDownMenu_CreateInfo()
+			info.notCheckable = false
+			info.text = reason
+			info.func = function()
+				AddStatsUnitToKOS(player)
+				Spy:SetKOSReason(player, reason)
+				SpyStats:Recalulate()
+				CloseDropDownMenus(1)
+			end
+			if playerData and playerData.reason and playerData.reason[reason] == true then
+				info.checked = true
+			end
+			UIDropDownMenu_AddButton(info, level)
+		end
+	end
 end
 
 function Spy:ShowStatsDropDown(node, button)
