@@ -72,6 +72,9 @@ Sight entries, reasons and notes sync live, with no `/reload`.
   same channel name.
 - The game can refuse a channel (crowded, locked or switched off); Spy retries
   and moves to `SpyKOSB` … `SpyKOSE`, then falls back to party/raid messages.
+- Enabling sync joins the channel in the background and retries if the game's
+  channel list is still settling; no `/reload` is needed after `/spysync on`.
+  (Installing or updating the addon itself still needs one `/reload`.)
 - If a channel still does not deliver, add your friend as a sync partner:
   `/spysync partner <player>`. Every change is also whispered to partners, which
   works without a channel. `/spysync test` prints the channel state and pings

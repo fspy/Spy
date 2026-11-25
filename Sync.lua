@@ -297,6 +297,7 @@ end
 
 function Spy:SyncNextChannel()
 	local names = self:SyncChannelNames()
+	self.SyncJoinTries = nil
 	self.SyncChannelIndex = (self.SyncChannelIndex or 1) + 1
 	if self.SyncChannelIndex > #names then
 		self.SyncChannelFailed = true
@@ -310,6 +311,34 @@ function Spy:SyncNextChannel()
 	C_Timer.After(2, function()
 		Spy:SyncJoinChannel(true)
 	end)
+end
+
+-- A channel join can fail silently while the game is still settling its channel
+-- list. This watcher keeps trying, and moves to a backup after three misses.
+function Spy:SyncWatch()
+	if not self:SyncEnabled() or not self:SyncChannelName() or self.SyncChannelFailed then
+		return
+	end
+	local _, id = self:SyncActiveChannel()
+	if id then
+		self.SyncJoinTries = nil
+		if not self.SyncHelloAt then
+			self:SyncHello(true)
+		end
+		return
+	end
+	local current = GetTime()
+	if self.SyncJoinAt and current - self.SyncJoinAt <= 12 then
+		return
+	end
+	self.SyncJoinTries = (self.SyncJoinTries or 0) + 1
+	if self.SyncJoinTries > 3 then
+		self.SyncJoinTries = nil
+		self:SyncNextChannel()
+	else
+		self.SyncJoinAt = nil
+		self:SyncJoinChannel(false)
+	end
 end
 
 -- Sending ----------------------------------------------------------------------
@@ -370,9 +399,10 @@ function Spy:SyncPump()
 		local _, id = self:SyncActiveChannel()
 		if not id then
 			self:SyncJoinChannel(false)
-			if GetTime() - item.queuedAt > 20 then
-				local group = GroupChannel()
+			if self.SyncChannelFailed then
+				-- Every channel was refused: use the group instead.
 				table.remove(queue, 1)
+				local group = GroupChannel()
 				if group then
 					item.chatType = group
 					item.target = nil
@@ -383,7 +413,12 @@ function Spy:SyncPump()
 				end
 				return
 			end
-			self:SyncPumpLater(2)
+			-- The channel is still being joined. Keep the message, but not forever.
+			if GetTime() - item.queuedAt > 300 then
+				table.remove(queue, 1)
+				return
+			end
+			self:SyncPumpLater(3)
 			return
 		end
 		target = tostring(id)
@@ -835,6 +870,8 @@ function Spy:SyncChannelNotice(event, notice, ...)
 		self.SyncChannelIndex = found
 		self.SyncChannelFailed = nil
 		self.SyncChannelWarned = nil
+		self.SyncJoinTries = nil
+		self.SyncJoinAt = nil
 		self:SyncHello(true)
 	end
 end
@@ -959,6 +996,8 @@ function Spy:SyncEnteredWorld()
 	end
 	self.SyncChannelIndex = nil
 	self.SyncChannelFailed = nil
+	self.SyncJoinTries = nil
+	self.SyncJoinAt = nil
 	self:SyncJoinChannel(false)
 	C_Timer.After(6, function()
 		Spy:SyncJoinChannel(true)
@@ -1005,6 +1044,11 @@ function Spy:SyncInitialize()
 	self:RegisterEvent("GROUP_ROSTER_UPDATE", "SyncGroupChanged")
 	self:RegisterEvent("PLAYER_ENTERING_WORLD", "SyncEnteredWorld")
 	self:RegisterEvent("PLAYER_REGEN_ENABLED", "SyncCombatEnded")
+	if not self.SyncWatchTimer then
+		self.SyncWatchTimer = C_Timer.NewTicker(10, function()
+			Spy:SyncWatch()
+		end)
+	end
 	C_Timer.After(6, function()
 		Spy:SyncJoinChannel(false)
 	end)
@@ -1045,6 +1089,9 @@ Spy.options.args.DataOptions.args.SyncKOS = {
 		if value then
 			Spy:SyncReconcile()
 			Spy.SyncChannelIndex = nil
+			Spy.SyncJoinTries = nil
+			Spy.SyncJoinAt = nil
+			Spy.SyncHelloAt = nil
 			Spy:SyncJoinChannel(true)
 		end
 	end,
@@ -1084,6 +1131,9 @@ SlashCmdList["SPYSYNC"] = function(message)
 		Spy.db.profile.SyncKOS = true
 		Spy:SyncReconcile()
 		Spy.SyncChannelIndex = nil
+		Spy.SyncJoinTries = nil
+		Spy.SyncJoinAt = nil
+		Spy.SyncHelloAt = nil
 		Spy:SyncJoinChannel(true)
 		DEFAULT_CHAT_FRAME:AddMessage(L["SpySignatureColored"] .. L["SyncOn"])
 	elseif command == "off" then
@@ -1106,6 +1156,9 @@ SlashCmdList["SPYSYNC"] = function(message)
 			Spy.SyncChannelIndex = nil
 			Spy.SyncChannelFailed = nil
 			Spy.SyncChannelWarned = nil
+			Spy.SyncJoinTries = nil
+			Spy.SyncJoinAt = nil
+			Spy.SyncHelloAt = nil
 			Spy:SyncJoinChannel(true)
 			DEFAULT_CHAT_FRAME:AddMessage(L["SpySignatureColored"] .. L["SyncChannelJoined"]:format(name))
 		end

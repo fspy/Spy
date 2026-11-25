@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.3.8-forever30-fspy.6
+
+- Channel joins are retried in the background (every 10 seconds) while sync is
+  on, instead of only while a message is waiting. A join that fails silently
+  while the game settles its channel list no longer needs a `/reload`; after
+  three misses Spy moves to the next backup channel.
+- Queued channel messages are kept for up to five minutes while the join is in
+  progress, then fall back to party/raid only if every channel was refused.
+
 ## 1.3.8-forever30-fspy.5
 
 - Release packaging only: CI now publishes `Spy-forever.zip` and a
