@@ -28,6 +28,7 @@ jobs:
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
           git archive --format=zip --prefix=Spy/ -o "Spy-${version}.zip" HEAD
+          cp "Spy-${version}.zip" Spy.zip
           unzip -l "Spy-${version}.zip" | head -20
 
       - name: Publish release
@@ -36,6 +37,6 @@ jobs:
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
-          gh release create "$GITHUB_REF_NAME" "Spy-${version}.zip" \
+          gh release create "$GITHUB_REF_NAME" "Spy-${version}.zip" Spy.zip \
             --title "Spy (Forever) $version" \
             --generate-notes

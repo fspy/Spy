@@ -28,9 +28,12 @@ Update with `git -C Spy pull`.
 
 ### Release zip
 
-Download the latest `Spy-*.zip` from
-[Releases](https://github.com/fspy/spy-forever/releases) and extract it into
-`World of Warcraft/_forever_/Interface/AddOns/` (the zip contains a `Spy/` folder).
+Download **[Spy.zip](https://github.com/fspy/spy-forever/releases/latest/download/Spy.zip)**
+and extract it into `World of Warcraft/_forever_/Interface/AddOns/` (the zip contains
+a `Spy/` folder). Do not use GitHub's "Download ZIP" from the repository root — it
+extracts as `spy-forever-main` and WoW will not load it.
+
+The versioned asset (`Spy-<version>.zip`) is the same file.
 
 ## First run
 
