@@ -27,9 +27,25 @@ jobs:
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
+          interface=$(grep -m1 '^## Interface:' Spy.toc | cut -d' ' -f3 | cut -d, -f1 | tr -d '\r')
           git archive --format=zip --prefix=Spy/ -o "Spy-${version}.zip" HEAD
+          cp "Spy-${version}.zip" Spy-forever.zip
           cp "Spy-${version}.zip" Spy.zip
+          cat > release.json <<EOF
+          {
+            "releases": [
+              {
+                "filename": "Spy-forever.zip",
+                "nolib": false,
+                "metadata": [
+                  { "flavor": "forever", "interface": $interface }
+                ]
+              }
+            ]
+          }
+          EOF
           unzip -l "Spy-${version}.zip" | head -20
+          cat release.json
 
       - name: Publish release
         env:
@@ -37,6 +53,6 @@ jobs:
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
-          gh release create "$GITHUB_REF_NAME" "Spy-${version}.zip" Spy.zip \
+          gh release create "$GITHUB_REF_NAME" "Spy-${version}.zip" Spy-forever.zip Spy.zip release.json \
             --title "Spy (Forever) $version" \
             --generate-notes
