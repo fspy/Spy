@@ -15,7 +15,10 @@ The addon folder **must** be named `Spy` — that is where the game reads
 
 1. WowUp → Settings → Addon providers → enable **GitHub**.
 2. Get Addons → Install from URL → paste `https://github.com/fspy/Spy`.
-3. Updates appear in WowUp like any other addon.
+3. WowUp shows *"We were unable to verify if the latest release of this addon is compatible with your selected client"* — this is expected for GitHub addons, because it cannot check Forever's interface `16001`. Click **Install**.
+4. Updates appear in WowUp like any other addon.
+
+After installing, confirm the path is `Interface/AddOns/Spy/Spy.toc`. If WowUp nested the folder (`Spy/Spy/Spy.toc`) or named it differently, move the inner `Spy` folder so it sits directly in `AddOns/`.
 
 ### Git
 
