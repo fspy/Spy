@@ -15,11 +15,19 @@ tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 
 current=$(sed -n 's/^## Version: //p' "$toc" | head -n 1 | tr -d '\r')
-if [[ ! $current =~ ^(.+-fspy\.)([0-9]+)$ ]]; then
+if [[ ! $current =~ ^(.+-fspy\.)([0-9]+)(-.*)?$ ]]; then
 	echo "bump.sh: no <base>-fspy.N version in $toc (found '$current')" >&2
 	exit 1
 fi
-next="${BASH_REMATCH[1]}$((10#${BASH_REMATCH[2]} + 1))"
+prefix=${BASH_REMATCH[1]}
+number=${BASH_REMATCH[2]}
+suffix=${BASH_REMATCH[3]}
+if [[ -n $suffix ]]; then
+	# A beta/alpha ends the iteration: the next bump is its stable version.
+	next="${prefix}${number}"
+else
+	next="${prefix}$((10#${number} + 1))"
+fi
 
 if grep -qxF "## $next" "$changelog"; then
 	echo "bump.sh: $changelog already has a section for $next" >&2

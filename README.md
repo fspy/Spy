@@ -155,9 +155,10 @@ The Release workflow runs `luac -p` on every `.lua` file. When the version in
 publishes `Spy-<version>.zip`, `Spy.zip`, `Spy-forever.zip` and `release.json`;
 the `## <version>` section of `CHANGELOG.md` becomes the release notes, so it
 must exist or CI fails. A push that does not bump the version only runs the
-checks and keeps the built zip as a workflow artifact. Versions containing
-`-beta` or `-alpha` are published as GitHub prereleases. Never move or reuse a
-tag — publish a new version instead.
+checks and keeps the built zip as a workflow artifact. For a beta, set the
+version to `<next>-beta.1` by hand; the next `scripts/bump.sh` produces the
+stable `<next>`. Versions containing `-beta` or `-alpha` are published as GitHub
+prereleases. Never move or reuse a tag — publish a new version instead.
 
 ## Roadmap
 
