@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.8-fspy.10
+
+- Version strings drop the static `forever30` port marker: releases are now
+  `1.3.8-fspy.<n>`. The fork point (Spy Classic 1.3.8, imported through Spy
+  Forever 1.3.8-forever30) stays documented in `Spy.toc`, the README and the
+  `1.3.8-forever30-fspy.1` entry. The counter continues at 10 so updaters still
+  see a newer version.
+
 ## 1.3.8-forever30-fspy.9
 
 - Fixed an error when enabling sync: the chain icon is a frame on this client,

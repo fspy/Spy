@@ -136,13 +136,18 @@ adding the current target as a partner and removing partners with a button.
   `NAME_PLATE_UNIT_ADDED`, `PLAYER_TARGET_CHANGED`, `UPDATE_MOUSEOVER_UNIT`,
   `UNIT_AURA` and related events.
 - Lua is 5.1 (`luac -p` works for a syntax pass). Several files carry a UTF-8 BOM,
-  mark, which the client accepts but `luac` does not, so strip it before checking.
+  which the client accepts but `luac` does not, so strip it before checking.
   The `Libs/` directory is vendored.
 
 ### Releases
 
 `Spy.toc` is the only version authority; the tag, asset names and release notes
-all derive from it. A release is one version bump:
+all derive from it. Versions are `<upstream>-fspy.<n>`: `1.3.8` is the Spy
+Classic release this fork started from (imported through Zerkaa's Spy Forever
+`1.3.8-forever30`), and `fspy.<n>` counts this fork's releases. The counter never
+resets, so the updater always sees a newer version. The asset is
+`Spy-<version>.zip` (e.g. `Spy-1.3.8-fspy.10.zip`); `Spy-` is the addon name, not
+part of the version. A release is one version bump:
 
 ```sh
 scripts/bump.sh "What changed" "Another change"
