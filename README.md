@@ -135,9 +135,29 @@ adding the current target as a partner and removing partners with a button.
 - `COMBAT_LOG_EVENT_UNFILTERED` is **not** available. Detection uses
   `NAME_PLATE_UNIT_ADDED`, `PLAYER_TARGET_CHANGED`, `UPDATE_MOUSEOVER_UNIT`,
   `UNIT_AURA` and related events.
-- Lua is 5.1 (`luac -p` works for a syntax pass). The `Libs/` directory is vendored.
-- Bump `## Version:` in `Spy.toc`, tag `v<version>` (without the addon prefix),
-  and the release workflow builds `Spy-<version>.zip` with a `Spy/` top-level folder.
+- Lua is 5.1 (`luac -p` works for a syntax pass). Several files carry a UTF-8 BOM,
+  mark, which the client accepts but `luac` does not, so strip it before checking.
+  The `Libs/` directory is vendored.
+
+### Releases
+
+`Spy.toc` is the only version authority; the tag, asset names and release notes
+all derive from it. A release is one version bump:
+
+```sh
+scripts/bump.sh "What changed" "Another change"
+git commit -am "Fix the thing"
+git push
+```
+
+The Release workflow runs `luac -p` on every `.lua` file. When the version in
+`Spy.toc` has no release yet, it creates the annotated tag `v<version>` and
+publishes `Spy-<version>.zip`, `Spy.zip`, `Spy-forever.zip` and `release.json`;
+the `## <version>` section of `CHANGELOG.md` becomes the release notes, so it
+must exist or CI fails. A push that does not bump the version only runs the
+checks and keeps the built zip as a workflow artifact. Versions containing
+`-beta` or `-alpha` are published as GitHub prereleases. Never move or reuse a
+tag — publish a new version instead.
 
 ## Roadmap
 

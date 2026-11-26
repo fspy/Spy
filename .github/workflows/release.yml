@@ -1,36 +1,126 @@
 name: Release
 
+# A release is a version bump, not a hand-made tag:
+#   1. scripts/bump.sh "what changed"   (bumps Spy.toc, opens CHANGELOG.md)
+#   2. commit and push to main
+# Every push runs the Lua 5.1 syntax check and builds the zip. If the version
+# named in Spy.toc has no release yet, this workflow creates the annotated tag
+# and publishes it; otherwise the zip is kept as a workflow artifact. Tags are
+# never moved: publish a new version.
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
+  workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Check tag matches Spy.toc
+      - name: Install Lua 5.1
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends lua5.1
+
+      - name: Check Lua syntax
+        shell: bash
         run: |
           set -euo pipefail
-          version=$(grep -m1 '^## Version:' Spy.toc | cut -d' ' -f3 | tr -d '\r')
-          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
-            echo "Tag $GITHUB_REF_NAME does not match Spy.toc version v$version" >&2
+          failed=0
+          while IFS= read -r -d '' file; do
+            # Several files carry a UTF-8 BOM; the client accepts it, Lua 5.1 does not.
+            if ! sed $'1s/^\xEF\xBB\xBF//' "$file" | luac5.1 -p - 2>"$RUNNER_TEMP/luac.err"; then
+              echo "::error file=$file::Lua 5.1 syntax error"
+              cat "$RUNNER_TEMP/luac.err"
+              failed=1
+            fi
+          done < <(find . -path ./.git -prune -o -name '*.lua' -print0)
+          exit "$failed"
+
+      - name: Read version and notes
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/^## Version: //p' Spy.toc | head -n 1 | tr -d '\r')
+          if [[ ! $version =~ ^[0-9A-Za-z._-]+$ ]]; then
+            echo "::error::Spy.toc has no usable '## Version:' line (found '$version')"
+            exit 1
+          fi
+          awk -v v="$version" '
+            $0 == "## " v { inside = 1; next }
+            inside && /^## / { exit }
+            inside { print }
+          ' CHANGELOG.md | sed '/./,$!d' > release-notes.md
+          if [[ ! -s release-notes.md ]]; then
+            echo "::error::CHANGELOG.md has no '## $version' section"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+
+      - name: Check release state
+        id: state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ $GITHUB_REF != refs/heads/main ]]; then
+            echo "Not on main; checks only."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          tag="${{ steps.meta.outputs.tag }}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists; checks only."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            tagged=$(git rev-list -n 1 "refs/tags/$tag")
+            if [[ $tagged != "$GITHUB_SHA" ]]; then
+              echo "::error::$tag points at $tagged, not $GITHUB_SHA. Bump the version instead of moving a tag."
+              exit 1
+            fi
+            echo "$tag exists at this commit without a release; retrying the publish."
+          fi
+          echo "publish=true" >> "$GITHUB_OUTPUT"
+
+      - name: Build and verify zip
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ steps.meta.outputs.version }}"
+          interface=$(sed $'1s/^\xEF\xBB\xBF//' Spy.toc | grep -m1 '^## Interface:' | cut -d' ' -f3 | cut -d, -f1 | tr -d '\r')
+          git archive --format=zip --prefix=Spy/ -o "Spy-$version.zip" "$GITHUB_SHA"
+          cp "Spy-$version.zip" Spy-forever.zip
+          cp "Spy-$version.zip" Spy.zip
+
+          unzip -Z1 "Spy-$version.zip" > files.txt
+          echo "Spy-$version.zip has $(wc -l < files.txt) entries"
+          if ! grep -qx 'Spy/Spy.toc' files.txt; then
+            echo "::error::the release zip has no Spy/Spy.toc"
+            exit 1
+          fi
+          if grep -qE '^Spy/(README\.md|CHANGELOG\.md|scripts/|\.github/)' files.txt; then
+            echo "::error::development files leaked into the release zip"
+            grep -E '^Spy/(README\.md|CHANGELOG\.md|scripts/|\.github/)' files.txt
             exit 1
           fi
 
-      - name: Package
-        run: |
-          set -euo pipefail
-          version="${GITHUB_REF_NAME#v}"
-          interface=$(grep -m1 'Interface:' Spy.toc | cut -d' ' -f3 | cut -d, -f1 | tr -d '\r')
-          git archive --format=zip --prefix=Spy/ -o "Spy-${version}.zip" HEAD
-          cp "Spy-${version}.zip" Spy-forever.zip
-          cp "Spy-${version}.zip" Spy.zip
           cat > release.json <<EOF
           {
             "releases": [
@@ -44,15 +134,49 @@ jobs:
             ]
           }
           EOF
-          unzip -l "Spy-${version}.zip" | head -20
           cat release.json
 
-      - name: Publish release
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Keep the build for unreleased commits
+        if: steps.state.outputs.publish == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Spy-${{ steps.meta.outputs.version }}
+          path: |
+            Spy-*.zip
+            Spy.zip
+            release.json
+            release-notes.md
+          retention-days: 14
+
+      - name: Tag the release commit
+        if: steps.state.outputs.publish == 'true'
+        shell: bash
         run: |
           set -euo pipefail
-          version="${GITHUB_REF_NAME#v}"
-          gh release create "$GITHUB_REF_NAME" "Spy-${version}.zip" Spy-forever.zip Spy.zip release.json \
+          tag="${{ steps.meta.outputs.tag }}"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "$tag already exists at $GITHUB_SHA (retrying a failed publish)."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$tag" -m "Spy (Forever) ${{ steps.meta.outputs.version }}" "$GITHUB_SHA"
+          git push origin "refs/tags/$tag"
+
+      - name: Publish release
+        if: steps.state.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ steps.meta.outputs.version }}"
+          tag="${{ steps.meta.outputs.tag }}"
+          flags=()
+          if [[ $version == *-beta* || $version == *-alpha* ]]; then
+            flags+=(--prerelease)
+          fi
+          gh release create "$tag" "Spy-$version.zip" Spy-forever.zip Spy.zip release.json \
             --title "Spy (Forever) $version" \
-            --generate-notes
+            --notes-file release-notes.md \
+            "${flags[@]}"
