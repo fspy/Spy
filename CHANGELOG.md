@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.8-forever30-fspy.9
+
+- Fixed an error when enabling sync: the chain icon is a frame on this client,
+  and frames have no `SetVertexColor` (only textures do), so `/spysync on` and
+  the ten-second sync refresh threw `attempt to call a nil value`. The button
+  now tints its textures, and the icon changes color again (green connected,
+  yellow waiting, red channel refused, grey off).
+
 ## 1.3.8-forever30-fspy.8
 
 - A **Sync** page in the addon's options window (not a slash command): enable
