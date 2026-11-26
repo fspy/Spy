@@ -1450,7 +1450,15 @@ function Spy:RefreshSyncButton()
 			r, g, b = 1, 0.82, 0.2
 		end
 	end
-	button:SetVertexColor(r, g, b)
+	-- Frames have no SetVertexColor on this client; tint the button textures.
+	local normal = button.GetNormalTexture and button:GetNormalTexture()
+	if normal then
+		normal:SetVertexColor(r, g, b)
+	end
+	local pushed = button.GetPushedTexture and button:GetPushedTexture()
+	if pushed then
+		pushed:SetVertexColor(r, g, b)
+	end
 end
 
 function Spy:SyncTest()
