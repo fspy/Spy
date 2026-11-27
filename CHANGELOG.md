@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.8-fspy.15
+
+- Fix fspy.14 breaking the addon at load: GameTooltip cannot be hooked while addon files are still loading on this client. The call aborted Forever.lua, so ScanUnit and ForeverStoreKeys were never defined, OnInitialize stopped before creating Spy.db, and the result was "attempt to index field 'db' (a nil value)" plus "attempt to call a nil value" in ScanUnit.
+- Install the unit-tooltip line at PLAYER_ENTERING_WORLD instead, wrap the hook in pcall, and run the callback through the addon's guarded handler so a tooltip problem can never take Forever.lua down again.
+- Make ManageExpirations return quietly when Spy.db is not ready, instead of repeating the error every 10 seconds.
+
 ## 1.3.8-fspy.14
 
 - Record which character added each Kill On Sight player. The name is kept account-wide, survives shared lists and is carried in sync as an extra entry field that older clients ignore.

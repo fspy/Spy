@@ -210,8 +210,15 @@ function Spy:UpdateActiveCount()
 end
 
 function Spy:ManageExpirations()
-	local mode = Spy.db.profile.CurrentList
-	local expirationFunction = Spy.ListTypes[mode][3]
+	-- The timer starts in OnEnable; if OnInitialize stopped early (a broken addon
+	-- file), `db` can still be nil. Do not turn that into an error every 10 seconds.
+	local profile = Spy.db and Spy.db.profile
+	if not profile then
+		return
+	end
+	local mode = profile.CurrentList
+	local listType = Spy.ListTypes and Spy.ListTypes[mode]
+	local expirationFunction = listType and listType[3]
 	if expirationFunction then
 		expirationFunction()
 	end

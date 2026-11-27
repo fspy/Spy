@@ -129,6 +129,9 @@ end
 -- Unit tooltips: hovering a player's frame, nameplate or model shows the same
 -- Kill On Sight line as the Spy window: who added them and when.
 local function AddKOSAddedBy(tooltip)
+	if tooltip.IsForbidden and Spy:Readable(tooltip:IsForbidden()) then
+		return
+	end
 	-- On Forever GetUnit() returns name, unit, unlike the old client's unit only.
 	local first, second = tooltip.GetUnit and tooltip:GetUnit()
 	local unit = Spy:Readable(second) or Spy:Readable(first)
@@ -149,12 +152,27 @@ local function AddKOSAddedBy(tooltip)
 	tooltip:AddLine(text, 1, 0.82, 0, true)
 end
 
-if GameTooltip and GameTooltip.HookScript then
-	GameTooltip:HookScript("OnTooltipSetUnit", AddKOSAddedBy)
-	GameTooltip:HookScript("OnTooltipCleared", function(tooltip)
+-- GameTooltip cannot be hooked while the addon files are still loading on this
+-- client: the call aborted Forever.lua at this point, which left ScanUnit and
+-- ForeverStoreKeys undefined and broke OnInitialize (Spy.db stayed nil). Hook it
+-- once the world is up, and never let a hook failure take the file down again.
+local function InstallKOSAddedByTooltip()
+	if not GameTooltip or not GameTooltip.HookScript then
+		return
+	end
+	local handler = Spy.ForeverGuard and Spy.ForeverGuard("KOS tooltip", AddKOSAddedBy) or AddKOSAddedBy
+	pcall(GameTooltip.HookScript, GameTooltip, "OnTooltipSetUnit", handler)
+	pcall(GameTooltip.HookScript, GameTooltip, "OnTooltipCleared", function(tooltip)
 		tooltip.SpyAddedByFor = nil
 	end)
 end
+
+local tooltipLoader = CreateFrame("Frame")
+tooltipLoader:RegisterEvent("PLAYER_ENTERING_WORLD")
+tooltipLoader:SetScript("OnEvent", function(self)
+	self:UnregisterEvent("PLAYER_ENTERING_WORLD")
+	InstallKOSAddedByTooltip()
+end)
 
 -- Forever: the GUIDs of the players we read, mapped to the name Spy keys them by.
 -- GetPlayerInfoByGUID does not give the "First-Last" key UnitName gives (Forever
