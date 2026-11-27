@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.8-fspy.12
+
+- Fix the missing `L["On"]`/`L["Off"]` locale keys that made `/spysync status`
+  and `/spysync test` raise an AceLocale error instead of printing the sync
+  state.
+- Show the actual release version in game: the options window title,
+  `/spy version` and `/spysync test` now print the TOC version (for example
+  `1.3.8-fspy.12`). `Spy.Version` stays `1.3.8` because the data-sharing
+  protocol parses it as major.minor.patch.
+
 ## 1.3.8-fspy.11
 
 - Release packaging matches BigWigs: one `Spy-<version>.zip` plus a

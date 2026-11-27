@@ -1463,8 +1463,7 @@ end
 
 function Spy:SyncTest()
 	local name, id = self:SyncActiveChannel()
-	local metadata = C_AddOns and C_AddOns.GetAddOnMetadata
-	local version = metadata and metadata("Spy", "Version") or "?"
+	local version = Spy.AddonVersion or Spy.Version or "?"
 	local lines = {
 		L["SyncTestVersion"]:format(tostring(version), self.db.profile.SyncKOS and L["On"] or L["Off"]),
 		L["SyncTestChannel"]:format(tostring(self:SyncChannelName() or "-"), tostring(id or "-"),

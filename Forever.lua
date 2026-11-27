@@ -1264,7 +1264,7 @@ function Spy:PrintDebug(lines)
 		end
 	end
 	local version, build, _, interface = GetBuildInfo()
-	out(("Forever port of Spy %s, client %s (%s), interface %s"):format(Spy.Version, tostring(version), tostring(build), tostring(interface)))
+	out(("Forever port of Spy %s, client %s (%s), interface %s"):format(Spy.AddonVersion or Spy.Version, tostring(version), tostring(build), tostring(interface)))
 	local inInstance, instanceType = IsInInstance()
 	out(("Spy on: %s | in this zone: %s (pvp type %s, flagged %s, instance %s)"):format(
 		yesNo(Spy.db.profile.Enabled), yesNo(Spy.EnabledInZone), tostring(Spy:GetZonePVPInfo() or "none"),
@@ -1659,6 +1659,18 @@ Spy.optionsSlash.args.debug = {
 	order = 12,
 	func = function()
 		Spy:PrintDebug()
+	end,
+	dialogHidden = true,
+}
+
+Spy.optionsSlash.args.version = {
+	name = L["Version"],
+	desc = L["VersionSlashDescription"],
+	type = "execute",
+	order = 14,
+	func = function()
+		DEFAULT_CHAT_FRAME:AddMessage(L["SpySignatureColored"] .. L["VersionSlashOutput"]:format(
+			tostring(Spy.AddonVersion or Spy.Version or "?")))
 	end,
 	dialogHidden = true,
 }

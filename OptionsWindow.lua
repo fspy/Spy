@@ -683,7 +683,7 @@ function OW:Create()
 	frame:RegisterForDrag("LeftButton")
 	frame:SetScript("OnDragStart", frame.StartMoving)
 	frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
-	if frame.SetTitle then frame:SetTitle(L["OptionsWindowTitle"]:format(tostring(Spy.Version or ""))) end
+	if frame.SetTitle then frame:SetTitle(L["OptionsWindowTitle"]:format(tostring(Spy.AddonVersion or Spy.Version or ""))) end
 	if frame.SetPortraitToAsset then frame:SetPortraitToAsset("Interface\\Icons\\INV_Misc_Spyglass_03") end
 	tinsert(UISpecialFrames, "SpyOptionsFrame")
 

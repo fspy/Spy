@@ -133,6 +133,8 @@ if L then
 	L["WindowWidthDescription"] = "The width of the Spy window. You can also drag its bottom right corner."
 	L["WindowPreview"] = "Preview"
 	L["OptionsWindowTitle"] = "Spy %s - Options"
+	L["VersionSlashDescription"] = "Prints the installed Spy version."
+	L["VersionSlashOutput"] = "Spy version %s"
 	L["OptionsSavedNote"] = "Changes are saved at once."
 	L["NameplatesAllOff"] = "\"Always show nameplates\" is off: the game only shows nameplates in combat, so Spy only sees the enemies you target or mouse over. Type /spy nameplates, or turn it on in Options > Nameplates."
 	L["NameplatesSlash"] = "Nameplates"

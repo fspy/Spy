@@ -8,6 +8,11 @@ local _
 
 Spy = LibStub("AceAddon-3.0"):NewAddon("Spy", "AceConsole-3.0", "AceEvent-3.0", "AceComm-3.0", "AceTimer-3.0")
 Spy.Version = "1.3.8"
+-- The TOC is the release authority (1.3.8-fspy.N). Spy.Version stays the numeric
+-- upstream version: it travels in the data-sharing protocol, where VersionCheck
+-- parses major.minor.patch. Show the full release version in the UI instead.
+local addonMetadata = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
+Spy.AddonVersion = (addonMetadata and addonMetadata("Spy", "Version")) or Spy.Version
 Spy.DatabaseVersion = "1.1"
 Spy.Signature = "[Spy]"
 Spy.ButtonLimit = 15
