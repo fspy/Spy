@@ -126,6 +126,36 @@ function Spy:EnemyPlayerName(unit)
 	return nil
 end
 
+-- Unit tooltips: hovering a player's frame, nameplate or model shows the same
+-- Kill On Sight line as the Spy window: who added them and when.
+local function AddKOSAddedBy(tooltip)
+	-- On Forever GetUnit() returns name, unit, unlike the old client's unit only.
+	local first, second = tooltip.GetUnit and tooltip:GetUnit()
+	local unit = Spy:Readable(second) or Spy:Readable(first)
+	if not unit or Spy:IsSecret(unit) then
+		return
+	end
+	local name = Spy:PlayerName(unit)
+	if not name or not SpyPerCharDB or not SpyPerCharDB.KOSData[name] then
+		return
+	end
+	local by = Spy.PlayerAddedBy and Spy:PlayerAddedBy(name)
+	if not by or tooltip.SpyAddedByFor == name then
+		return
+	end
+	tooltip.SpyAddedByFor = name
+	local ago = Spy.TimeAgo and Spy:TimeAgo(SpyPerCharDB.KOSData[name])
+	local text = ago and L["KOSAddedByWhen"]:format(by, ago) or L["KOSAddedBy"]:format(by)
+	tooltip:AddLine(text, 1, 0.82, 0, true)
+end
+
+if GameTooltip and GameTooltip.HookScript then
+	GameTooltip:HookScript("OnTooltipSetUnit", AddKOSAddedBy)
+	GameTooltip:HookScript("OnTooltipCleared", function(tooltip)
+		tooltip.SpyAddedByFor = nil
+	end)
+end
+
 -- Forever: the GUIDs of the players we read, mapped to the name Spy keys them by.
 -- GetPlayerInfoByGUID does not give the "First-Last" key UnitName gives (Forever
 -- names have a surname where Classic had the realm), so a kill or a death recap that

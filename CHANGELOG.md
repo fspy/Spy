@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.8-fspy.14
+
+- Record which character added each Kill On Sight player. The name is kept account-wide, survives shared lists and is carried in sync as an extra entry field that older clients ignore.
+- Show it as "Added by <character>, <when>" in the Spy window tooltip, and on the game's own unit tooltip (frame, nameplate or model) for Kill On Sight players.
+- Entries added before this release have no recorded adder; they show no line. New adds, and re-adds after a removal, record the character that made them.
+
 ## 1.3.8-fspy.13
 
 - Fix the bogus player notes in Kill On Sight sync. Snapshot chunks were joined back together without their ";" record separator, so the last note of a chunk swallowed the next record's marker and player name: the tooltip showed things like "Note: EQq-Xox", or several names in a row after repeated syncs.

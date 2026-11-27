@@ -68,9 +68,9 @@ commands are shortcuts for the same actions.
 
 Spy joins a hidden chat channel and exchanges addon messages there (the same
 technique Happy Camper uses for camps). The lines never appear in chat. Kill On
-Sight entries, reasons, notes and the **watched guild list** sync live, with no
-`/reload`. Adding or removing a watched guild (and its reason) propagates the
-same way.
+Sight entries, reasons, notes, **who added them** and the **watched guild list**
+sync live, with no `/reload`. Adding or removing a watched guild (and its reason)
+propagates the same way.
 
 - Default channel: `SpyKOS`. For a guild or friend group, set your own:
   `/spysync channel spy-kos-my-guild`. Everyone who should share must use the
@@ -87,10 +87,14 @@ same way.
 - Everyone in the channel with sync on can add and remove entries. Only use a
   channel with people you trust.
 - Both players must run the same sync protocol; update both to fspy.7 or newer.
+  The `Added by` line needs fspy.14 or newer on the side that added the entry.
 - Removals leave a tombstone for 90 days; the later change wins, using the
   server clock.
 - Notes are shortened to 60 characters in sync, and a snapshot carries at most
   300 entries.
+- The character that added an entry is kept with it and shown as `Added by …` in
+  the Spy window tooltip and on a player's unit tooltip (frame, nameplate or
+  model). Entries added before this was recorded show no name.
 
 Commands:
 
@@ -103,6 +107,7 @@ Commands:
 | `/spysync partner <player>` | Add/remove a whisper sync partner (no channel needed) |
 | `/spysync whisper <player>` | Send your list to one player over whisper |
 | `/spysync test` | Print channel/partner state and ping both |
+| `/spysync repair` | Strip fragments an old sync bug glued onto saved notes |
 | `/spysync debug` | Print every sent, received and applied sync message |
 
 The **Sync** page in the options window does all of this without typing, including

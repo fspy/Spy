@@ -1083,6 +1083,26 @@ function Spy:UpdateAlertWindow()
 	end		
 end	
 
+-- "less than a minute ago", "3 hours ago": the phrases the player tooltip uses.
+function Spy:TimeAgo(when)
+	when = tonumber(when)
+	if not when or when <= 0 then
+		return nil
+	end
+	local minutes = math.floor((time() - when) / 60)
+	if minutes <= 0 then
+		return L["LessThanOneMinuteAgo"]
+	end
+	local hours = math.floor(minutes / 60)
+	if minutes < 60 then
+		return minutes .. " " .. L["MinutesAgo"]
+	end
+	if hours < 24 then
+		return hours .. " " .. L["HoursAgo"]
+	end
+	return math.floor(hours / 24) .. " " .. L["DaysAgo"]
+end
+
 function Spy:ShowTooltip(self, show, id)
 	if show then
 		local unit = self.unit
@@ -1135,25 +1155,19 @@ function Spy:ShowTooltip(self, show, id)
 							end
 						end
 					end
+					local by = Spy.PlayerAddedBy and Spy:PlayerAddedBy(name)
+					if by then
+						local ago = Spy:TimeAgo(SpyPerCharDB.KOSData[name])
+						GameTooltip:AddLine(ago and L["KOSAddedByWhen"]:format(by, ago) or L["KOSAddedBy"]:format(by),
+							reasonText.r, reasonText.g, reasonText.b, true)
+					end
 				end
 
 				if Spy.db.profile.DisplayLastSeen then
 					local locationText = Spy.db.profile.Colors.Tooltip["Location Text"]
-					if playerData.time then
-						local lastSeen = L["LastSeen"]
-						local minutes = math.floor((time() - playerData.time) / 60)
-						local hours = math.floor(minutes / 60)
-						if minutes <= 0 then
-							lastSeen = lastSeen.." "..L["LessThanOneMinuteAgo"]
-						elseif minutes > 0 and minutes < 60 then
-							lastSeen = lastSeen.." "..minutes.." "..L["MinutesAgo"]
-						elseif hours > 0 and hours < 24 then
-							lastSeen = lastSeen.." "..hours.." "..L["HoursAgo"]
-						else
-							local days = math.floor(hours / 24)
-							lastSeen = lastSeen.." "..days.." "..L["DaysAgo"]
-						end
-						GameTooltip:AddLine(lastSeen, locationText.r, locationText.g, locationText.b)
+					local ago = playerData.time and Spy:TimeAgo(playerData.time)
+					if ago then
+						GameTooltip:AddLine(L["LastSeen"].." "..ago, locationText.r, locationText.g, locationText.b)
 					end
 					GameTooltip:AddLine(Spy:GetPlayerLocation(playerData), locationText.r, locationText.g, locationText.b)
 				end

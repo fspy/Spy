@@ -35,6 +35,7 @@ local FLUSH_DELAY = 0.4
 local MAX_SYNC_ENTRIES = 300
 local MAX_SYNC_GUILDS = 100
 local NOTE_SYNC_LIMIT = 60
+local ADDED_BY_LIMIT = 40
 local TOMBSTONE_DAYS = 90
 
 local RETRY_RESULTS = { [3] = true, [8] = true, [11] = true }
@@ -145,17 +146,24 @@ local function EncodeEntry(name, entry)
 	if #note > NOTE_SYNC_LIMIT then
 		note = note:sub(1, NOTE_SYNC_LIMIT)
 	end
+	local by = tostring(entry.addedBy or "")
+	if #by > ADDED_BY_LIMIT then
+		by = by:sub(1, ADDED_BY_LIMIT)
+	end
 	return table.concat({
 		Escape(name),
 		tostring(entry.added or 0),
 		tostring(entry.updated or 0),
 		EncodeReasons(entry.reasons),
 		Escape(note),
+		-- Appended so a client that predates the field still reads the note as the
+		-- fifth field; it simply ignores this one.
+		Escape(by),
 	}, "~")
 end
 
 local function DecodeEntry(record)
-	local name, added, updated, reasons, note = strsplit("~", record)
+	local name, added, updated, reasons, note, by = strsplit("~", record)
 	if not name then
 		return
 	end
@@ -168,6 +176,7 @@ local function DecodeEntry(record)
 		updated = tonumber(updated) or 0,
 		reasons = DecodeReasons(reasons),
 		note = Unescape(note or ""),
+		addedBy = Unescape(by or ""),
 	}
 end
 
@@ -777,6 +786,9 @@ function Spy:SyncApplyEntry(name, entry)
 		self:UpdatePlayerStatus(name, nil, nil, nil, nil, self.EnemyFactionName, true, nil, nil)
 	end
 	SpyPerCharDB.KOSData[name] = entry.added
+	if entry.addedBy and entry.addedBy ~= "" then
+		self:SetPlayerAddedBy(name, entry.addedBy)
+	end
 	local data = SpyPerCharDB.PlayerData[name]
 	if data then
 		data.kos = 1
@@ -798,6 +810,7 @@ function Spy:SyncApplyEntry(name, entry)
 		updated = entry.updated,
 		reasons = CopyReasons(entry.reasons),
 		note = entry.note,
+		addedBy = entry.addedBy or "",
 	}
 	state.removed[name] = nil
 	self.SyncApplying = wasApplying
@@ -819,6 +832,9 @@ function Spy:SyncMergeEntry(name, entry, source)
 	if current and current.updated == entry.updated then
 		entry.reasons = UnionReasons(current.reasons, entry.reasons)
 		entry.note = entry.note ~= "" and entry.note or current.note
+	end
+	if entry.addedBy == nil or entry.addedBy == "" then
+		entry.addedBy = (current and current.addedBy) or ""
 	end
 	local added = entry.added or 0
 	if current and (current.added or 0) > 0 then
@@ -854,6 +870,7 @@ function Spy:SyncMergeRemoved(name, timestamp, source)
 	if SpyPerCharDB.KOSData[name] then
 		self:RemoveKOSData(name)
 	end
+	self:SetPlayerAddedBy(name, nil)
 	self.SyncApplying = wasApplying
 	state.entries[name] = nil
 	state.removed[name] = math.max(state.removed[name] or 0, timestamp)
@@ -1206,6 +1223,7 @@ function Spy:SyncTouch(name)
 		local data = SpyPerCharDB.PlayerData[name]
 		entry.reasons = CopyReasons(data and data.reason)
 		entry.note = self.PlayerNote and self:PlayerNote(name) or nil
+		entry.addedBy = (self.PlayerAddedBy and self:PlayerAddedBy(name)) or entry.addedBy or ""
 		state.removed[name] = nil
 	else
 		if state.entries[name] then
@@ -1299,6 +1317,9 @@ function Spy:SyncReconcile()
 		local note = self.PlayerNote and self:PlayerNote(name)
 		if note then
 			entry.note = note
+		end
+		if not entry.addedBy or entry.addedBy == "" then
+			entry.addedBy = (self.PlayerAddedBy and self:PlayerAddedBy(name)) or ""
 		end
 		state.removed[name] = nil
 	end

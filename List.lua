@@ -409,8 +409,34 @@ function Spy:RemoveIgnoreData(name)
 	end
 end
 
+-- Who added a player to the Kill On Sight list. Account-wide, like the notes:
+-- Spy.StoreCharacter is the full Forever name of the character ("Mage Spy").
+local function AddedByStore()
+	SpyDB.kosAddedBy = SpyDB.kosAddedBy or {}
+	local realm = tostring(Spy.StoreRealm or Spy.RealmName or "?")
+	SpyDB.kosAddedBy[realm] = SpyDB.kosAddedBy[realm] or {}
+	return SpyDB.kosAddedBy[realm]
+end
+
+function Spy:PlayerAddedBy(name)
+	if type(name) ~= "string" or name == "" or not SpyDB then
+		return nil
+	end
+	local by = AddedByStore()[name]
+	return type(by) == "string" and by ~= "" and by or nil
+end
+
+function Spy:SetPlayerAddedBy(name, by)
+	if type(name) ~= "string" or name == "" or not SpyDB then
+		return
+	end
+	by = type(by) == "string" and by or ""
+	AddedByStore()[name] = by ~= "" and by or nil
+end
+
 function Spy:AddKOSData(name)
 	SpyPerCharDB.KOSData[name] = time()
+	self:SetPlayerAddedBy(name, Spy.StoreCharacter or Spy.CharacterName)
 --	SpyPerCharDB.PlayerData[name].kos = 1 
 	if Spy.db.profile.ShareKOSBetweenCharacters then
 		SpyDB.removeKOSData[Spy.StoreRealm][Spy.FactionName][name] = nil
@@ -418,6 +444,7 @@ function Spy:AddKOSData(name)
 end
 
 function Spy:RemoveKOSData(name)
+	self:SetPlayerAddedBy(name, nil)
 	if SpyPerCharDB.KOSData[name] then
 		local playerData = SpyPerCharDB.PlayerData[name]
 		if playerData and playerData.reason then
