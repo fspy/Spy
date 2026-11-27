@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.8-fspy.13
+
+- Fix the bogus player notes in Kill On Sight sync. Snapshot chunks were joined back together without their ";" record separator, so the last note of a chunk swallowed the next record's marker and player name: the tooltip showed things like "Note: EQq-Xox", or several names in a row after repeated syncs.
+- Repair the saved notes, once at login and from anything an older peer still sends: the leaked fragment is stripped and any real text is kept (for example "stole mining node fear"). /spysync repair runs it on demand.
+- A newer Kill On Sight entry with no note now clears the note on the other clients, so removing a note syncs instead of leaving the old text behind.
+
 ## 1.3.8-fspy.12
 
 - Fix the missing `L["On"]`/`L["Off"]` locale keys that made `/spysync status`

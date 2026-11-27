@@ -217,6 +217,140 @@ local function SetNote(name, text)
 	store[name] = (type(text) == "string" and text ~= "") and text or nil
 end
 
+-- Snapshot chunks are records joined by ";". The first version glued the received
+-- chunks together without one, so the last note of a chunk swallowed the first
+-- record of the next chunk: its "E" (an entry) and the player name, or "G"/"H" and
+-- a guild. A note could collect one at every chunk boundary over several syncs.
+-- This strips those fragments from saved notes and from what an old peer sends.
+local function TrimNote(text)
+	return (tostring(text or ""):gsub("^%s+", ""):gsub("%s+$", ""))
+end
+
+local function NoteSuffixes()
+	local suffixes = {}
+	local function add(marker, text)
+		if type(text) == "string" and text ~= "" then
+			suffixes[marker .. text] = true
+			suffixes[marker .. Escape(text)] = true
+		end
+	end
+	local state = State()
+	local lists = { state.entries, state.removed, state.guilds, state.guildsRemoved }
+	if SpyPerCharDB then
+		lists[#lists + 1] = SpyPerCharDB.KOSData
+		lists[#lists + 1] = SpyPerCharDB.IgnoreData
+		lists[#lists + 1] = SpyPerCharDB.PlayerData
+	end
+	for index = 1, #lists do
+		for key in pairs(lists[index] or {}) do
+			add("E", key)
+			add("D", key)
+			add("G", key)
+			add("H", key)
+		end
+	end
+	if Spy.GuildList then
+		local ok, guilds = pcall(Spy.GuildList, Spy)
+		if ok and type(guilds) == "table" then
+			for key in pairs(guilds) do
+				add("G", key)
+				add("H", key)
+			end
+		end
+	end
+	return suffixes
+end
+
+local function StripNoteLeaks(note, suffixes)
+	if type(note) ~= "string" or note == "" then
+		return note, false
+	end
+	local changed = false
+	while true do
+		local found
+		for suffix in pairs(suffixes) do
+			local length = #suffix
+			if #note >= length and note:sub(-length) == suffix then
+				note = note:sub(1, #note - length)
+				changed, found = true, true
+				break
+			end
+		end
+		if not found then
+			-- The entry's name may already be gone from every list: a name-shaped
+			-- leak ("E" or "D" glued directly before "First-Last") is enough to
+			-- strip it. A space before it means a real word, not a glued record.
+			local prefix, marker = note:match("^(.-)([ED][^%s%-]+%-[^%s%-]+)$")
+			if marker and (prefix == "" or not prefix:sub(-1):match("%s")) then
+				note = prefix
+				changed, found = true, true
+			end
+		end
+		if not found then
+			break
+		end
+	end
+	local trimmed = TrimNote(note)
+	if trimmed ~= note then
+		changed = true
+	end
+	return trimmed, changed
+end
+
+-- `only` limits the pass to those names (a SET, or the names of a snapshot).
+function Spy:RepairSyncNotes(only, quiet)
+	local suffixes = NoteSuffixes()
+	local changed, count = {}, 0
+	local currentRealm = tostring(Spy.StoreRealm or Spy.RealmName or "?")
+	local stores = SpyDB and SpyDB.playerNotes
+	if type(stores) == "table" then
+		for realm, notes in pairs(stores) do
+			if type(notes) == "table" then
+				for name, note in pairs(notes) do
+					if not only or only[name] then
+						local cleaned, wasChanged = StripNoteLeaks(note, suffixes)
+						if wasChanged then
+							notes[name] = cleaned ~= "" and cleaned or nil
+							if realm == currentRealm then
+								changed[name] = true
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+	local state = State()
+	for name, entry in pairs(state.entries) do
+		if not only or only[name] then
+			local cleaned, wasChanged = StripNoteLeaks(entry.note, suffixes)
+			if wasChanged then
+				entry.note = cleaned
+				changed[name] = true
+			end
+		end
+	end
+	local current = Now()
+	for name in pairs(changed) do
+		count = count + 1
+		local entry = state.entries[name]
+		if entry then
+			-- Keep the cleaned note: it must be newer than the corrupt copy peers
+			-- already hold, or their next snapshot puts the fragment back.
+			entry.updated = math.max(entry.updated or 0, current)
+			self.SyncDirty = self.SyncDirty or {}
+			self.SyncDirty[name] = true
+		end
+	end
+	if count > 0 then
+		self:SyncScheduleFlush()
+		if not quiet and DEFAULT_CHAT_FRAME then
+			DEFAULT_CHAT_FRAME:AddMessage(L["SpySignatureColored"] .. L["SyncNotesRepaired"]:format(count))
+		end
+	end
+	return count
+end
+
 local function Digest()
 	local state = State()
 	local parts = {}
@@ -628,7 +762,9 @@ function Spy:SyncSendSnapshot(reason, target)
 	local reserve = #tostring(PROTOCOL) + 2 + #head + 10 + #tail
 	local chunks = SplitRecords(records, MAX_MESSAGE - reserve)
 	for index = 1, #chunks do
-		self:SyncSend(("%s%d/%d%s%s"):format(head, index, #chunks, tail, chunks[index]), "BULK", target)
+		-- The ";" closes the last record: a receiver that glues the chunks together
+		-- without one (older versions) still sees a clean boundary.
+		self:SyncSend(("%s%d/%d%s%s;"):format(head, index, #chunks, tail, chunks[index]), "BULK", target)
 	end
 end
 
@@ -651,6 +787,10 @@ function Spy:SyncApplyEntry(name, entry)
 	end
 	if entry.note and entry.note ~= "" then
 		SetNote(name, entry.note)
+	else
+		-- An accepted newer entry with no note clears it: a note removed on one
+		-- character (or repaired) must not survive from an older copy.
+		SetNote(name, "")
 	end
 	local state = State()
 	state.entries[name] = {
@@ -819,13 +959,14 @@ function Spy:SyncRefresh()
 end
 
 function Spy:SyncReceiveSnapshot(payload, source)
-	local changed = false
+	local changed, touched = false, {}
 	for record in (payload or ""):gmatch("[^;]+") do
 		local kind = record:sub(1, 1)
 		if kind == "E" then
 			local name, entry = DecodeEntry(record:sub(2))
 			if name and entry and self:SyncMergeEntry(name, entry, source) then
 				changed = true
+				touched[name] = true
 			end
 		elseif kind == "D" then
 			local name, timestamp = record:sub(2):match("^([^~]+)~(%d+)$")
@@ -845,6 +986,8 @@ function Spy:SyncReceiveSnapshot(payload, source)
 		end
 	end
 	if changed then
+		-- A peer on an older version still sends the leaked record fragment.
+		self:RepairSyncNotes(touched, true)
 		self:SyncRefresh()
 	end
 	return changed
@@ -890,7 +1033,7 @@ function Spy:SyncHandleSnapshot(source, snapshot, index, total, digest, faction,
 	if faction ~= "" and self.FactionName and faction ~= self.FactionName then
 		return
 	end
-	if self:SyncReceiveSnapshot(table.concat(parts), source) and Digest() ~= digest then
+	if self:SyncReceiveSnapshot(table.concat(parts, ";"), source) and Digest() ~= digest then
 		C_Timer.After(math.random(5, 15), function()
 			Spy:SyncHello(true)
 		end)
@@ -942,6 +1085,7 @@ function Spy:SyncHandle(operation, rest, source, isWhisper)
 	elseif operation == "SET" then
 		local name, entry = DecodeEntry(rest)
 		if name and entry and self:SyncMergeEntry(name, entry, source) then
+			self:RepairSyncNotes({ [name] = true }, true)
 			self:SyncRefresh()
 		end
 
@@ -1275,6 +1419,8 @@ function Spy:SyncInitialize()
 	BuildReasonMaps()
 	State()
 	self:SyncReconcile()
+	-- Strip the record fragments older versions glued onto saved notes.
+	self:RepairSyncNotes()
 	self:RefreshSyncOptions()
 	self:RefreshSyncButton()
 	C_ChatInfo.RegisterAddonMessagePrefix(PREFIX)
@@ -1676,6 +1822,11 @@ SlashCmdList["SPYSYNC"] = function(message)
 		end
 	elseif command == "test" then
 		Spy:SyncTest()
+	elseif command == "repair" then
+		local count = Spy:RepairSyncNotes()
+		if count == 0 then
+			DEFAULT_CHAT_FRAME:AddMessage(L["SpySignatureColored"] .. L["SyncNotesOk"])
+		end
 	elseif command == "debug" then
 		Spy.SyncDebug = not Spy.SyncDebug
 		DEFAULT_CHAT_FRAME:AddMessage(L["SpySignatureColored"] .. (Spy.SyncDebug and L["SyncDebugOn"] or L["SyncDebugOff"]))
