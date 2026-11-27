@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.8-fspy.11
+
+- Release packaging matches BigWigs: one `Spy-<version>.zip` plus a
+  `release.json`. The constant-name `Spy-forever.zip` and `Spy.zip` assets are
+  gone. WowUp shows a GitHub release's asset filename as the addon version, so
+  the constant name left it with no version data and no updates; the versioned
+  filename fixes both.
+
 ## 1.3.8-fspy.10
 
 - Version strings drop the static `forever30` port marker: releases are now

@@ -15,11 +15,12 @@ The addon folder **must** be named `Spy` — that is where the game reads
 
 1. WowUp → Settings → Addon providers → enable **GitHub**.
 2. Get Addons → Install from URL → paste `https://github.com/fspy/Spy`.
-3. The release publishes `Spy-forever.zip` and a `release.json` with the `forever`
-   flavor, which is what WowUp looks for, so it should verify the client without
-   the "unable to verify" warning. If you had the addon installed before, remove
-   and re-import it so WowUp fetches the current release again.
-4. Updates appear in WowUp like any other addon.
+3. Each release is a single `Spy-<version>.zip` plus a `release.json` that marks
+   it as the `forever` flavor, which is what WowUp looks for, so it verifies the
+   client instead of warning that it cannot. WowUp shows a GitHub release's asset
+   filename as the addon version, so the asset carries the version.
+4. Updates appear in WowUp like any other addon. If you installed an older
+   release, re-import the addon once so WowUp picks up the new asset name.
 
 After installing, confirm the path is `Interface/AddOns/Spy/Spy.toc`. If WowUp nested the folder (`Spy/Spy/Spy.toc`) or named it differently, move the inner `Spy` folder so it sits directly in `AddOns/`.
 
@@ -34,12 +35,11 @@ Update with `git -C Spy pull`.
 
 ### Release zip
 
-Download **[Spy.zip](https://github.com/fspy/Spy/releases/latest/download/Spy.zip)**
-and extract it into `World of Warcraft/_forever_/Interface/AddOns/` (the zip contains
-a `Spy/` folder). Do not use GitHub's "Download ZIP" from the repository root — it
-extracts as `Spy-main` and WoW will not load it.
-
-The versioned asset (`Spy-<version>.zip`) is the same file.
+Download the `Spy-<version>.zip` asset from the
+[latest release](https://github.com/fspy/Spy/releases/latest) and extract it into
+`World of Warcraft/_forever_/Interface/AddOns/` (the zip contains a `Spy/` folder).
+Do not use GitHub's "Download ZIP" from the repository root — it extracts as
+`Spy-main` and WoW will not load it.
 
 ## First run
 
@@ -157,7 +157,8 @@ git push
 
 The Release workflow runs `luac -p` on every `.lua` file. When the version in
 `Spy.toc` has no release yet, it creates the annotated tag `v<version>` and
-publishes `Spy-<version>.zip`, `Spy.zip`, `Spy-forever.zip` and `release.json`;
+publishes `Spy-<version>.zip` and `release.json` (the BigWigs layout: the asset
+filename carries the version, the JSON names the `forever` flavor);
 the `## <version>` section of `CHANGELOG.md` becomes the release notes, so it
 must exist or CI fails. A push that does not bump the version only runs the
 checks and keeps the built zip as a workflow artifact. For a beta, set the

@@ -104,13 +104,12 @@ jobs:
         run: |
           set -euo pipefail
           version="${{ steps.meta.outputs.version }}"
+          asset="Spy-$version.zip"
           interface=$(sed $'1s/^\xEF\xBB\xBF//' Spy.toc | grep -m1 '^## Interface:' | cut -d' ' -f3 | cut -d, -f1 | tr -d '\r')
-          git archive --format=zip --prefix=Spy/ -o "Spy-$version.zip" "$GITHUB_SHA"
-          cp "Spy-$version.zip" Spy-forever.zip
-          cp "Spy-$version.zip" Spy.zip
+          git archive --format=zip --prefix=Spy/ -o "$asset" "$GITHUB_SHA"
 
-          unzip -Z1 "Spy-$version.zip" > files.txt
-          echo "Spy-$version.zip has $(wc -l < files.txt) entries"
+          unzip -Z1 "$asset" > files.txt
+          echo "$asset has $(wc -l < files.txt) entries"
           if ! grep -qx 'Spy/Spy.toc' files.txt; then
             echo "::error::the release zip has no Spy/Spy.toc"
             exit 1
@@ -125,7 +124,9 @@ jobs:
           {
             "releases": [
               {
-                "filename": "Spy-forever.zip",
+                "name": "Spy",
+                "version": "$version",
+                "filename": "$asset",
                 "nolib": false,
                 "metadata": [
                   { "flavor": "forever", "interface": $interface }
@@ -143,7 +144,6 @@ jobs:
           name: Spy-${{ steps.meta.outputs.version }}
           path: |
             Spy-*.zip
-            Spy.zip
             release.json
             release-notes.md
           retention-days: 14
@@ -176,7 +176,7 @@ jobs:
           if [[ $version == *-beta* || $version == *-alpha* ]]; then
             flags+=(--prerelease)
           fi
-          gh release create "$tag" "Spy-$version.zip" Spy-forever.zip Spy.zip release.json \
+          gh release create "$tag" "Spy-$version.zip" release.json \
             --title "Spy (Forever) $version" \
             --notes-file release-notes.md \
             "${flags[@]}"
