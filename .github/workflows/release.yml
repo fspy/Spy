@@ -180,3 +180,35 @@ jobs:
             --title "Spy (Forever) $version" \
             --notes-file release-notes.md \
             "${flags[@]}"
+
+      - name: Notify Discord
+        if: steps.state.outputs.publish == 'true'
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z ${DISCORD_WEBHOOK:-} ]]; then
+            echo "DISCORD_WEBHOOK is not set; skipping the Discord notification."
+            exit 0
+          fi
+          version="${{ steps.meta.outputs.version }}"
+          tag="${{ steps.meta.outputs.tag }}"
+          page="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/$tag"
+          asset="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/$tag/Spy-$version.zip"
+          # Embed descriptions are capped at 4096 characters. jq slices the string
+          # itself, so a multi-byte character is never cut in half.
+          notes=$(jq -Rs '.[0:3500]' release-notes.md)
+          payload=$(jq -n \
+            --arg title "Spy (Forever) $version" \
+            --arg page "$page" \
+            --arg asset "$asset" \
+            --arg file "Spy-$version.zip" \
+            --arg version "$version" \
+            --argjson notes "$notes" \
+            '{username: "Spy releases", embeds: [{title: $title, url: $page, description: $notes, color: 5793266, fields: [{name: "Version", value: $version, inline: true}, {name: "Download", value: ("[" + $file + "](" + $asset + ")"), inline: true}]}]}')
+          curl --fail --silent --show-error \
+            -H "Content-Type: application/json" \
+            --data "$payload" \
+            "$DISCORD_WEBHOOK" >/dev/null
+          echo "Discord notification sent for $tag."
